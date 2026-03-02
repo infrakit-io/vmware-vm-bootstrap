@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 
+	contentlibrary "github.com/Bibi40k/vmware-content-library-core"
 	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
 )
 
@@ -22,13 +22,6 @@ type ovfImportSpec struct {
 		Name    string `json:"Name,omitempty"`
 		Network string `json:"Network,omitempty"`
 	} `json:"NetworkMapping,omitempty"`
-}
-
-type govcLibraryInfo struct {
-	Library struct {
-		ID   string `json:"ID"`
-		Name string `json:"Name"`
-	} `json:"Library"`
 }
 
 func normalizeTalosVersion(v string) string {
@@ -83,7 +76,6 @@ func runGovc(ctx context.Context, env []string, args ...string) ([]byte, error) 
 }
 
 var talosLibraryItemSanitizer = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
-var talosLibraryItemLocks sync.Map
 
 func talosLibraryItemName(version, schematicID string) string {
 	v := strings.TrimPrefix(normalizeTalosVersion(version), "v")
@@ -101,139 +93,11 @@ func talosLibraryItemName(version, schematicID string) string {
 	return talosLibraryItemSanitizer.ReplaceAllString(name, "-")
 }
 
-func isGovcAlreadyExists(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "already_exists") ||
-		strings.Contains(msg, "duplicate_item_name_unsupported_in_library")
-}
-
 func govcErrContains(err error, needle string) bool {
 	if err == nil || strings.TrimSpace(needle) == "" {
 		return false
 	}
 	return strings.Contains(strings.ToLower(err.Error()), strings.ToLower(needle))
-}
-
-func resolveContentLibraryID(ctx context.Context, env []string, name string) (string, error) {
-	out, err := runGovc(ctx, env, "library.info", "-json", name)
-	if err != nil {
-		return "", err
-	}
-	trimmed := strings.TrimSpace(string(out))
-	if trimmed == "" || trimmed == "null" || trimmed == "[]" {
-		return "", fmt.Errorf("matches 0 items")
-	}
-	// govc versions may return either:
-	// - object: {"Library": {...}}
-	// - array:  [{...}]
-	var obj govcLibraryInfo
-	if err := json.Unmarshal([]byte(trimmed), &obj); err == nil {
-		id := strings.TrimSpace(obj.Library.ID)
-		if id != "" {
-			return id, nil
-		}
-	}
-	var arr []struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal([]byte(trimmed), &arr); err == nil {
-		if len(arr) == 1 && strings.TrimSpace(arr[0].ID) != "" {
-			return strings.TrimSpace(arr[0].ID), nil
-		}
-		if len(arr) > 1 {
-			return "", fmt.Errorf("content library name %q is ambiguous; set vcenter.content_library_id", name)
-		}
-	}
-	return "", fmt.Errorf("matches 0 items")
-}
-
-func ensureTalosContentLibrary(ctx context.Context, env []string, cfg *VMConfig) (libraryTarget, libraryName string, err error) {
-	if id := strings.TrimSpace(cfg.ContentLibraryID); id != "" {
-		return id, id, nil
-	}
-	name := strings.TrimSpace(cfg.ContentLibrary)
-	if name == "" {
-		name = "talos-images"
-	}
-	if id, err := resolveContentLibraryID(ctx, env, name); err == nil {
-		return id, name, nil
-	}
-	if err != nil {
-		msg := strings.ToLower(err.Error())
-		if strings.Contains(msg, "matches 0 items") {
-			// create below
-		} else if strings.Contains(msg, "matches ") && strings.Contains(msg, " items") {
-			return "", "", fmt.Errorf("content library name %q is ambiguous; set vcenter.content_library_id", name)
-		} else {
-			return "", "", fmt.Errorf("resolve content library %q: %w", name, err)
-		}
-	}
-	if _, err := runGovc(ctx, env, "library.create", name); err != nil {
-		return "", "", fmt.Errorf("ensure content library %q: %w", name, err)
-	}
-	id, err := resolveContentLibraryID(ctx, env, name)
-	if err != nil {
-		return "", "", fmt.Errorf("resolve content library %q after create: %w", name, err)
-	}
-	return id, name, nil
-}
-
-func talosLibraryItemExists(ctx context.Context, env []string, libraryTarget, itemName string) (bool, error) {
-	itemPath := fmt.Sprintf("%s/%s", strings.TrimSpace(libraryTarget), strings.TrimSpace(itemName))
-	out, err := runGovc(ctx, env, "library.info", "-json", itemPath)
-	if err != nil {
-		return false, err
-	}
-	trimmed := strings.TrimSpace(string(out))
-	if trimmed == "" || trimmed == "null" || trimmed == "[]" {
-		return false, nil
-	}
-	var obj map[string]any
-	if err := json.Unmarshal([]byte(trimmed), &obj); err == nil && len(obj) > 0 {
-		return true, nil
-	}
-	var arr []map[string]any
-	if err := json.Unmarshal([]byte(trimmed), &arr); err == nil && len(arr) > 0 {
-		return true, nil
-	}
-	return false, nil
-}
-
-func removeTalosLibraryItem(ctx context.Context, env []string, libraryTarget, itemName string) {
-	_, _ = runGovc(ctx, env, "library.rm", fmt.Sprintf("%s/%s", libraryTarget, itemName))
-}
-
-func importTalosLibraryItem(ctx context.Context, env []string, libraryTarget, itemName, ovaURL string) error {
-	// Preferred path: vCenter pulls directly (best cache locality).
-	if _, err := runGovc(ctx, env, "library.import", "-pull", "-n", itemName, libraryTarget, ovaURL); err == nil {
-		return nil
-	}
-	// Fallback path: client-side import (works around some vCenter pull protocol issues).
-	removeTalosLibraryItem(ctx, env, libraryTarget, itemName)
-	if _, err := runGovc(ctx, env, "library.import", "-n", itemName, libraryTarget, ovaURL); err != nil && !isGovcAlreadyExists(err) {
-		return fmt.Errorf("library.import failed (pull and fallback): %w", err)
-	}
-	return nil
-}
-
-func ensureTalosLibraryItem(ctx context.Context, env []string, libraryTarget, itemName, ovaURL string) error {
-	lockKey := fmt.Sprintf("%s/%s", strings.TrimSpace(libraryTarget), strings.TrimSpace(itemName))
-	muAny, _ := talosLibraryItemLocks.LoadOrStore(lockKey, &sync.Mutex{})
-	mu := muAny.(*sync.Mutex)
-	mu.Lock()
-	defer mu.Unlock()
-
-	exists, err := talosLibraryItemExists(ctx, env, libraryTarget, itemName)
-	if err != nil {
-		return fmt.Errorf("library.info failed: %w", err)
-	}
-	if exists {
-		return nil
-	}
-	return importTalosLibraryItem(ctx, env, libraryTarget, itemName, ovaURL)
 }
 
 // CreateTalosNodeFromOVA deploys a Talos VMware OVA and powers the VM on.
@@ -268,14 +132,24 @@ func CreateTalosNodeFromOVA(ctx context.Context, cfg *VMConfig, logger *slog.Log
 	logger.Info("Deploying Talos OVA", "url", ovaURL, "version", version, "schematic_id", schematicID)
 
 	env := govcEnv(cfg)
-	libraryTarget, libraryName, err := ensureTalosContentLibrary(ctx, env, cfg)
-	if err != nil {
-		return nil, err
+	libClient := contentlibrary.NewClient(contentlibrary.GovcRunner{Env: env})
+	libraryTarget := strings.TrimSpace(cfg.ContentLibraryID)
+	libraryName := libraryTarget
+	if libraryTarget == "" {
+		libraryName = strings.TrimSpace(cfg.ContentLibrary)
+		if libraryName == "" {
+			libraryName = "talos-images"
+		}
+		libRef, err := libClient.EnsureLibrary(ctx, libraryName)
+		if err != nil {
+			return nil, fmt.Errorf("ensure content library %q: %w", libraryName, err)
+		}
+		libraryTarget = libRef.Target
 	}
 	itemName := talosLibraryItemName(version, schematicID)
 	logger.Info("Talos content library target", "library", libraryName, "item", itemName)
-	if err := ensureTalosLibraryItem(ctx, env, libraryTarget, itemName, ovaURL); err != nil {
-		return nil, err
+	if err := libClient.EnsureItemFromURL(ctx, libraryTarget, itemName, ovaURL); err != nil {
+		return nil, fmt.Errorf("ensure library item: %w", err)
 	}
 
 	specRaw, err := runGovc(ctx, env, "import.spec", ovaURL)
@@ -306,29 +180,30 @@ func CreateTalosNodeFromOVA(ctx context.Context, cfg *VMConfig, logger *slog.Log
 	}
 	defer func() { _ = os.Remove(specPath) }()
 
-	args := []string{"library.deploy", "-dc", cfg.Datacenter, "-ds", cfg.Datastore, "-options", specPath}
-	if cfg.Folder != "" {
-		args = append(args, "-folder", cfg.Folder)
+	deployOpt := contentlibrary.DeployOptions{
+		Datacenter:   cfg.Datacenter,
+		Datastore:    cfg.Datastore,
+		Folder:       cfg.Folder,
+		ResourcePool: cfg.ResourcePool,
+		OptionsPath:  specPath,
+		ItemPath:     contentlibrary.ItemPath(libraryTarget, itemName),
+		VMName:       cfg.Name,
 	}
-	if cfg.ResourcePool != "" {
-		args = append(args, "-pool", cfg.ResourcePool)
-	}
-	args = append(args, fmt.Sprintf("%s/%s", libraryTarget, itemName), cfg.Name)
-	if _, err := runGovc(ctx, env, args...); err != nil {
+	if err := libClient.DeployItem(ctx, deployOpt); err != nil {
 		// Recover once from broken library item state (e.g. partial failed import).
 		if govcErrContains(err, "invalid_library_item") || govcErrContains(err, "not an OVF") {
-			removeTalosLibraryItem(ctx, env, libraryTarget, itemName)
-			if impErr := importTalosLibraryItem(ctx, env, libraryTarget, itemName, ovaURL); impErr == nil {
-				if _, retryErr := runGovc(ctx, env, args...); retryErr == nil {
+			libClient.RemoveItem(ctx, libraryTarget, itemName)
+			if impErr := libClient.ImportItemFromURL(ctx, libraryTarget, itemName, ovaURL); impErr == nil {
+				if retryErr := libClient.DeployItem(ctx, deployOpt); retryErr == nil {
 					goto deployed
 				} else {
-					return nil, fmt.Errorf("govc library.deploy failed after item reimport: %w", retryErr)
+					return nil, fmt.Errorf("library deploy failed after item reimport: %w", retryErr)
 				}
 			} else {
 				return nil, fmt.Errorf("recover invalid library item failed: %w", impErr)
 			}
 		}
-		return nil, fmt.Errorf("govc library.deploy failed: %w", err)
+		return nil, err
 	}
 deployed:
 
