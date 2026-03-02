@@ -8,6 +8,17 @@ import (
 	"testing"
 )
 
+func withFakeGovc(t *testing.T, script string) {
+	t.Helper()
+	tmp := t.TempDir()
+	govcPath := filepath.Join(tmp, "govc")
+	if err := os.WriteFile(govcPath, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake govc: %v", err)
+	}
+	oldPath := os.Getenv("PATH")
+	t.Setenv("PATH", tmp+string(os.PathListSeparator)+oldPath)
+}
+
 func validTalosOVAConfig() *VMConfig {
 	return &VMConfig{
 		VCenterHost:      "vc.example.local",
@@ -57,8 +68,6 @@ func TestCreateTalosNodeFromOVA_ValidateConfigError(t *testing.T) {
 }
 
 func TestCreateTalosNodeFromOVA_ImportSpecFailure(t *testing.T) {
-	tmp := t.TempDir()
-	govcPath := filepath.Join(tmp, "govc")
 	script := `#!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == "library.info" ]]; then
@@ -75,12 +84,7 @@ fi
 echo "unexpected govc call: $*" >&2
 exit 1
 `
-	if err := os.WriteFile(govcPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake govc: %v", err)
-	}
-
-	oldPath := os.Getenv("PATH")
-	t.Setenv("PATH", tmp+string(os.PathListSeparator)+oldPath)
+	withFakeGovc(t, script)
 
 	cfg := validTalosOVAConfig()
 	_, err := CreateTalosNodeFromOVA(context.Background(), cfg, nil)
@@ -90,8 +94,6 @@ exit 1
 }
 
 func TestCreateTalosNodeFromOVA_ImportSpecParseError(t *testing.T) {
-	tmp := t.TempDir()
-	govcPath := filepath.Join(tmp, "govc")
 	script := `#!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == "library.info" ]]; then
@@ -105,12 +107,7 @@ fi
 echo "unexpected govc call: $*" >&2
 exit 1
 `
-	if err := os.WriteFile(govcPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake govc: %v", err)
-	}
-
-	oldPath := os.Getenv("PATH")
-	t.Setenv("PATH", tmp+string(os.PathListSeparator)+oldPath)
+	withFakeGovc(t, script)
 
 	cfg := validTalosOVAConfig()
 	_, err := CreateTalosNodeFromOVA(context.Background(), cfg, nil)
@@ -120,8 +117,6 @@ exit 1
 }
 
 func TestCreateTalosNodeFromOVA_EnsureItemError(t *testing.T) {
-	tmp := t.TempDir()
-	govcPath := filepath.Join(tmp, "govc")
 	script := `#!/usr/bin/env bash
 set -euo pipefail
 if [[ "${1:-}" == "library.info" ]]; then
@@ -131,15 +126,119 @@ fi
 echo "unexpected govc call: $*" >&2
 exit 1
 `
-	if err := os.WriteFile(govcPath, []byte(script), 0o755); err != nil {
-		t.Fatalf("write fake govc: %v", err)
-	}
-	oldPath := os.Getenv("PATH")
-	t.Setenv("PATH", tmp+string(os.PathListSeparator)+oldPath)
+	withFakeGovc(t, script)
 
 	cfg := validTalosOVAConfig()
 	_, err := CreateTalosNodeFromOVA(context.Background(), cfg, nil)
 	if err == nil || !strings.Contains(err.Error(), "ensure library item") {
 		t.Fatalf("expected ensure item error, got: %v", err)
+	}
+}
+
+func TestCreateTalosNodeFromOVA_DeployThenPowerOnFail(t *testing.T) {
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "library.info" ]]; then
+  echo '{"name":"already-there"}'
+  exit 0
+fi
+if [[ "${1:-}" == "import.spec" ]]; then
+  echo '{}'
+  exit 0
+fi
+if [[ "${1:-}" == "library.deploy" ]]; then
+  exit 0
+fi
+if [[ "${1:-}" == "vm.power" ]]; then
+  echo "power on failed in fake govc" >&2
+  exit 1
+fi
+echo "unexpected govc call: $*" >&2
+exit 1
+`
+	withFakeGovc(t, script)
+
+	cfg := validTalosOVAConfig()
+	_, err := CreateTalosNodeFromOVA(context.Background(), cfg, nil)
+	if err == nil || !strings.Contains(err.Error(), "failed to power on Talos VM") {
+		t.Fatalf("expected power-on failure, got: %v", err)
+	}
+}
+
+func TestCreateTalosNodeFromOVA_RecoverInvalidLibraryItem(t *testing.T) {
+	stateFile := filepath.Join(t.TempDir(), "govc-deploy-count")
+	t.Setenv("GOVC_FAKE_STATE", stateFile)
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+state="${GOVC_FAKE_STATE}"
+if [[ "${1:-}" == "library.info" ]]; then
+  echo '{"name":"already-there"}'
+  exit 0
+fi
+if [[ "${1:-}" == "import.spec" ]]; then
+  echo '{}'
+  exit 0
+fi
+if [[ "${1:-}" == "library.deploy" ]]; then
+  n=0
+  if [[ -f "$state" ]]; then n=$(cat "$state"); fi
+  n=$((n+1))
+  echo "$n" > "$state"
+  if [[ "$n" -eq 1 ]]; then
+    echo "not an OVF" >&2
+    exit 1
+  fi
+  exit 0
+fi
+if [[ "${1:-}" == "library.rm" ]]; then
+  exit 0
+fi
+if [[ "${1:-}" == "library.import" ]]; then
+  exit 0
+fi
+if [[ "${1:-}" == "vm.power" ]]; then
+  echo "power on failed in fake govc" >&2
+  exit 1
+fi
+echo "unexpected govc call: $*" >&2
+exit 1
+`
+	withFakeGovc(t, script)
+
+	cfg := validTalosOVAConfig()
+	_, err := CreateTalosNodeFromOVA(context.Background(), cfg, nil)
+	if err == nil || !strings.Contains(err.Error(), "failed to power on Talos VM") {
+		t.Fatalf("expected power-on failure after recovery path, got: %v", err)
+	}
+}
+
+func TestCreateTalosNodeFromOVA_PostDeployVCenterConnectFails(t *testing.T) {
+	script := `#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${1:-}" == "library.info" ]]; then
+  echo '{"name":"already-there"}'
+  exit 0
+fi
+if [[ "${1:-}" == "import.spec" ]]; then
+  echo '{}'
+  exit 0
+fi
+if [[ "${1:-}" == "library.deploy" ]]; then
+  exit 0
+fi
+if [[ "${1:-}" == "vm.power" ]]; then
+  exit 0
+fi
+echo "unexpected govc call: $*" >&2
+exit 1
+`
+	withFakeGovc(t, script)
+
+	cfg := validTalosOVAConfig()
+	cfg.VCenterHost = "https://127.0.0.1:1/sdk"
+
+	_, err := CreateTalosNodeFromOVA(context.Background(), cfg, nil)
+	if err == nil || !strings.Contains(err.Error(), "vCenter connection failed after OVA deploy") {
+		t.Fatalf("expected vCenter connection error, got: %v", err)
 	}
 }

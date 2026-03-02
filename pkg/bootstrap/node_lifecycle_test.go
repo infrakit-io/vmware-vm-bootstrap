@@ -90,6 +90,19 @@ func TestRecreateNodeWithLogger_ReturnsDeleteErrorWhenVCenterUnavailable(t *test
 	require.Contains(t, err.Error(), "vCenter connection failed")
 }
 
+func TestRecreateNodeWithLogger_DeleteThenCreatePath(t *testing.T) {
+	env, cleanup := newSimBootstrapEnv(t)
+	defer cleanup()
+
+	cfg := simNodeConfig(t, "does-not-exist")
+	cfg.VCenterHost = env.url.String()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	_, err := RecreateNodeWithLogger(context.Background(), cfg, logger)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid config")
+}
+
 func TestCreateNodeAndCreateNodeWithLogger_ValidateConfig(t *testing.T) {
 	_, err := CreateNode(context.Background(), &VMConfig{})
 	require.Error(t, err)

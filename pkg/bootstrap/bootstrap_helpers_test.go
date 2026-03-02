@@ -1,6 +1,9 @@
 package bootstrap
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestDefaultBootstrapperResolveProfile(t *testing.T) {
 	b := defaultBootstrapper()
@@ -29,5 +32,26 @@ func TestCurrentInstallPhase(t *testing.T) {
 	}
 	if got := currentInstallPhase(false, true); got != "phase2-wait-reboot" {
 		t.Fatalf("unexpected phase: %s", got)
+	}
+}
+
+func TestDefaultBootstrapperFactories(t *testing.T) {
+	b := defaultBootstrapper()
+
+	if b.newVMCreator(context.Background()) == nil {
+		t.Fatal("expected vm creator factory to return non-nil")
+	}
+	if b.newISOManager(context.Background()) == nil {
+		t.Fatal("expected iso manager factory to return non-nil")
+	}
+
+	_, err := b.connectVCenter(context.Background(), &VMConfig{
+		VCenterHost:     "https://127.0.0.1:1/sdk",
+		VCenterUsername: "user",
+		VCenterPassword: "pass",
+		VCenterInsecure: true,
+	})
+	if err == nil {
+		t.Fatal("expected connectVCenter to fail for unreachable endpoint")
 	}
 }

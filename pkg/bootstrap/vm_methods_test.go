@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"net/url"
 	"testing"
 
@@ -110,4 +111,56 @@ func TestVM_PowerOnOffDelete(t *testing.T) {
 	require.NoError(t, vm.PowerOff(context.Background()))
 	require.NoError(t, vm.PowerOn(context.Background()))
 	require.NoError(t, vm.Delete(context.Background()))
+}
+
+func TestVM_Verify_FailsWhenIPMissing(t *testing.T) {
+	env, cleanup := newSimBootstrapEnv(t)
+	defer cleanup()
+
+	vm := env.newVM(t)
+	vm.IPAddress = ""
+
+	simObj := env.model.Service.Context.Map.Get(vm.ManagedObject).(*simulator.VirtualMachine)
+	simObj.Guest.ToolsRunningStatus = string(types.VirtualMachineToolsRunningStatusGuestToolsRunning)
+
+	err := vm.Verify(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "IPAddress is required")
+}
+
+func TestVM_Verify_FailsWhenSSHFails(t *testing.T) {
+	env, cleanup := newSimBootstrapEnv(t)
+	defer cleanup()
+
+	vm := env.newVM(t)
+	simObj := env.model.Service.Context.Map.Get(vm.ManagedObject).(*simulator.VirtualMachine)
+	simObj.Guest.ToolsRunningStatus = string(types.VirtualMachineToolsRunningStatusGuestToolsRunning)
+
+	old := sshVerifier
+	sshVerifier = func(_ context.Context, _ string) error { return errors.New("ssh down") }
+	t.Cleanup(func() { sshVerifier = old })
+
+	err := vm.Verify(context.Background())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "SSH verification failed")
+}
+
+func TestVM_MethodsFailWithInvalidManagedObject(t *testing.T) {
+	env, cleanup := newSimBootstrapEnv(t)
+	defer cleanup()
+
+	vm := env.newVM(t)
+	vm.ManagedObject = types.ManagedObjectReference{}
+
+	err := vm.Verify(context.Background())
+	require.Error(t, err)
+
+	err = vm.PowerOff(context.Background())
+	require.Error(t, err)
+
+	err = vm.PowerOn(context.Background())
+	require.Error(t, err)
+
+	err = vm.Delete(context.Background())
+	require.Error(t, err)
 }
