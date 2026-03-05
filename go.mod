@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/Bibi40k/cli-wizard-core v0.1.4
+	github.com/Bibi40k/cli-wizard-core v0.1.5
 	github.com/Bibi40k/vmware-content-library-core v0.1.0
 	github.com/chzyer/readline v1.5.1
 	github.com/google/uuid v1.6.0
