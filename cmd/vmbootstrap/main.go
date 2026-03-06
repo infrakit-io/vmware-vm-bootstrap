@@ -126,6 +126,14 @@ func main() {
 	}()
 
 	if err := rootCmd.Execute(); err != nil {
+		if wizard.IsInterrupted(err) {
+			restoreTTYOnExit()
+			fmt.Println("\nCancelled.")
+			if debugCleanup != nil {
+				debugCleanup()
+			}
+			os.Exit(0)
+		}
 		fmt.Fprintln(os.Stderr, wizard.FormatCLIError(err))
 		if debugCleanup != nil {
 			debugCleanup()

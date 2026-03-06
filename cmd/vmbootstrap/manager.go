@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	survey "github.com/AlecAivazis/survey/v2"
+	surveyterm "github.com/AlecAivazis/survey/v2/terminal"
 	wizard "github.com/Bibi40k/cli-wizard-core"
 	"gopkg.in/yaml.v3"
 )
@@ -52,7 +54,10 @@ func runManager() error {
 			Message: "Select:",
 			Options: labels,
 		}, &choice); err != nil {
-			return nil // Ctrl+C → clean exit
+			if errors.Is(err, surveyterm.InterruptErr) {
+				return wizard.ErrInterrupted
+			}
+			return nil
 		}
 		// Drain any CPR responses survey left in stdin before any readLine calls.
 		drainStdin()

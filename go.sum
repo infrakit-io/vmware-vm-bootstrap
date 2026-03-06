@@ -1,7 +1,7 @@
 github.com/AlecAivazis/survey/v2 v2.3.7 h1:6I/u8FvytdGsgonrYsVn2t8t4QiRnh6QSTqkkhIiSjQ=
 github.com/AlecAivazis/survey/v2 v2.3.7/go.mod h1:xUTIdE4KCOIjsBAE1JYsUPoCqYdZ1reCfTwbto0Fduo=
-github.com/Bibi40k/cli-wizard-core v0.1.5 h1:RSc9wPTfywRy61iT9SR+bpAQoNlvO72Yva4AMbs0Lhk=
-github.com/Bibi40k/cli-wizard-core v0.1.5/go.mod h1:uIS0YW/NHcS4Z3yX0w/MTRj+EaxQXyI8wDNmQ70qtuM=
+github.com/Bibi40k/cli-wizard-core v0.1.6-0.20260306091628-262b0bb9193a h1:kiNFGrqUnvfyw+TAcpsYfCGmBAwWGiSMvQW+FDJkgF0=
+github.com/Bibi40k/cli-wizard-core v0.1.6-0.20260306091628-262b0bb9193a/go.mod h1:uIS0YW/NHcS4Z3yX0w/MTRj+EaxQXyI8wDNmQ70qtuM=
 github.com/Bibi40k/vmware-content-library-core v0.1.0 h1:NbTjTEDcJiTjnfSz3fhhNOO1ZDU7YfVMyh0nCze5BMg=
 github.com/Bibi40k/vmware-content-library-core v0.1.0/go.mod h1:B04pKOGPilOyI0alk2wxRiLcLqN4VMfbVZeWgmjHHgc=
 github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2 h1:+vx7roKuyA63nhn5WAunQHLTznkw5W8b1Xc0dNjp83s=
