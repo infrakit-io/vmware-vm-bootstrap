@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/signal"
 
-	wizard "github.com/Bibi40k/cli-wizard-core"
+	wizard "github.com/infrakit-io/cli-wizard-core"
 	"github.com/spf13/cobra"
 )
 

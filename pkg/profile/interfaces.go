@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/iso"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vm"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/iso"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vm"
 	"github.com/vmware/govmomi/object"
 )
 

@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"testing"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 )
 
 func TestSetDefaults_appliesDefaults(t *testing.T) {

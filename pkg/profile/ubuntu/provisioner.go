@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
-	"github.com/Bibi40k/vmware-vm-bootstrap/internal/utils"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/cloudinit"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/profile"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/internal/utils"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/cloudinit"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile"
 	"github.com/google/uuid"
 )
 

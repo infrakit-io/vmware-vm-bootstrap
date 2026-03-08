@@ -13,7 +13,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/bootstrap"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/bootstrap"
 )
 
 func main() {

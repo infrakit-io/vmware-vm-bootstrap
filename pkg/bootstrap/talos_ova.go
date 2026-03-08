@@ -12,8 +12,8 @@ import (
 	"regexp"
 	"strings"
 
-	contentlibrary "github.com/Bibi40k/vmware-content-library-core"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
+	contentlibrary "github.com/infrakit-io/vmware-content-library-core"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
 )
 
 type ovfImportSpec struct {

@@ -7,7 +7,7 @@ import (
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/types"
 
-	vm "github.com/Bibi40k/vmware-vm-bootstrap/pkg/vm"
+	vm "github.com/infrakit-io/vmware-vm-bootstrap/pkg/vm"
 )
 
 // CreatorInterface is a mock for vm.CreatorInterface.

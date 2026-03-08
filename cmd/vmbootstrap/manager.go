@@ -11,7 +11,7 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	surveyterm "github.com/AlecAivazis/survey/v2/terminal"
-	wizard "github.com/Bibi40k/cli-wizard-core"
+	wizard "github.com/infrakit-io/cli-wizard-core"
 	"gopkg.in/yaml.v3"
 )
 

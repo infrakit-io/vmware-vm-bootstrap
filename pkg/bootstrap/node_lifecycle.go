@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
 	"github.com/vmware/govmomi/vim25/types"
 )
 

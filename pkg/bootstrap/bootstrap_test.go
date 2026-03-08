@@ -14,17 +14,17 @@ import (
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/types"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
-	"github.com/Bibi40k/vmware-vm-bootstrap/internal/utils"
-	isomocks "github.com/Bibi40k/vmware-vm-bootstrap/pkg/iso/mocks"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/profile"
-	ubuntuprofile "github.com/Bibi40k/vmware-vm-bootstrap/pkg/profile/ubuntu"
-	vcmocks "github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter/mocks"
-	vmmocks "github.com/Bibi40k/vmware-vm-bootstrap/pkg/vm/mocks"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/internal/utils"
+	isomocks "github.com/infrakit-io/vmware-vm-bootstrap/pkg/iso/mocks"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile"
+	ubuntuprofile "github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile/ubuntu"
+	vcmocks "github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter/mocks"
+	vmmocks "github.com/infrakit-io/vmware-vm-bootstrap/pkg/vm/mocks"
 
-	isoiface "github.com/Bibi40k/vmware-vm-bootstrap/pkg/iso"
-	vcface "github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
-	vmiface "github.com/Bibi40k/vmware-vm-bootstrap/pkg/vm"
+	isoiface "github.com/infrakit-io/vmware-vm-bootstrap/pkg/iso"
+	vcface "github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
+	vmiface "github.com/infrakit-io/vmware-vm-bootstrap/pkg/vm"
 )
 
 // minimalConfig returns a valid VMConfig for tests.

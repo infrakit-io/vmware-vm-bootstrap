@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/types"
 )

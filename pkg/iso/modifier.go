@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 )
 
 const isoModifierVersion = "2026-02-24-20.04-append-v2"

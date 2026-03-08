@@ -3,7 +3,7 @@
 package mocks
 
 import (
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
 	"github.com/stretchr/testify/mock"
 	"github.com/vmware/govmomi/object"
 )

@@ -19,8 +19,8 @@ import (
 	"unicode"
 
 	survey "github.com/AlecAivazis/survey/v2"
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
 	"github.com/chzyer/readline"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"

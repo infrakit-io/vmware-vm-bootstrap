@@ -13,7 +13,7 @@ import (
 	"github.com/vmware/govmomi/simulator"
 	"github.com/vmware/govmomi/vim25/types"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 )
 
 func newSimVM(t *testing.T) (*simulator.Model, *govmomi.Client, *find.Finder, func()) {

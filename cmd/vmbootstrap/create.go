@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/bootstrap"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/bootstrap"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
 	"gopkg.in/yaml.v3"
 )
 

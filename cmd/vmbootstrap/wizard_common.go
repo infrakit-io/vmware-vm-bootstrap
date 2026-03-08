@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	wizard "github.com/Bibi40k/cli-wizard-core"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vcenter"
+	wizard "github.com/infrakit-io/cli-wizard-core"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
 	"gopkg.in/yaml.v3"
 )
 

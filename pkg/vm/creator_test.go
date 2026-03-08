@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/vmware/govmomi/vim25/types"
 )
 

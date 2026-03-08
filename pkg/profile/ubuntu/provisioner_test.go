@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	isomocks "github.com/Bibi40k/vmware-vm-bootstrap/pkg/iso/mocks"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/profile"
-	vmmocks "github.com/Bibi40k/vmware-vm-bootstrap/pkg/vm/mocks"
+	isomocks "github.com/infrakit-io/vmware-vm-bootstrap/pkg/iso/mocks"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile"
+	vmmocks "github.com/infrakit-io/vmware-vm-bootstrap/pkg/vm/mocks"
 	"github.com/stretchr/testify/mock"
 )
 

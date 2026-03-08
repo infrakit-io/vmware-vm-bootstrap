@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/vm"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vm"
 	"github.com/stretchr/testify/require"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"

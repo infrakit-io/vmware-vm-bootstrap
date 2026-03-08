@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
-	"github.com/Bibi40k/vmware-vm-bootstrap/pkg/profile"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile"
 )
 
 type Provisioner struct{}

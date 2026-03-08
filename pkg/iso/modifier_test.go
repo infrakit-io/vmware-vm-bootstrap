@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 )
 
 func TestModifyGRUBFile_AddsDefaultTimeoutAndAutoinstall(t *testing.T) {
