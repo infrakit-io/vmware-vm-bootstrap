@@ -93,6 +93,14 @@ func (m *ClientInterface) ListResourcePools(datacenter string) ([]vcenter.Resour
 	return args.Get(0).([]vcenter.ResourcePoolInfo), args.Error(1)
 }
 
+func (m *ClientInterface) ListVMGuestIPs(datacenter string) ([]vcenter.VMGuestIPInfo, error) {
+	args := m.Called(datacenter)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]vcenter.VMGuestIPInfo), args.Error(1)
+}
+
 func (m *ClientInterface) Disconnect() error {
 	args := m.Called()
 	return args.Error(0)

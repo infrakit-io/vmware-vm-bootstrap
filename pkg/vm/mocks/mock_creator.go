@@ -46,6 +46,16 @@ func (m *CreatorInterface) AddNetworkAdapter(v *object.VirtualMachine, network o
 	return args.Error(0)
 }
 
+func (m *CreatorInterface) SetMACAddress(v *object.VirtualMachine, mac string) (string, error) {
+	args := m.Called(v, mac)
+	return args.String(0), args.Error(1)
+}
+
+func (m *CreatorInterface) GetMACAddress(v *object.VirtualMachine) (string, error) {
+	args := m.Called(v)
+	return args.String(0), args.Error(1)
+}
+
 func (m *CreatorInterface) PowerOn(v *object.VirtualMachine) error {
 	args := m.Called(v)
 	return args.Error(0)

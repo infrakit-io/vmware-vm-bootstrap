@@ -17,6 +17,7 @@ type ClientInterface interface {
 	ListNetworks(datacenter string) ([]NetworkInfo, error)
 	ListFolders(datacenter string) ([]FolderInfo, error)
 	ListResourcePools(datacenter string) ([]ResourcePoolInfo, error)
+	ListVMGuestIPs(datacenter string) ([]VMGuestIPInfo, error)
 	Disconnect() error
 }
 

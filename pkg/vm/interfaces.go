@@ -16,6 +16,8 @@ type CreatorInterface interface {
 	EnsureSCSIController(vm *object.VirtualMachine) (int32, error)
 	AddDisk(vm *object.VirtualMachine, datastore *object.Datastore, sizeGB int64, scsiKey int32) error
 	AddNetworkAdapter(vm *object.VirtualMachine, network object.NetworkReference) error
+	SetMACAddress(vm *object.VirtualMachine, mac string) (string, error) // Apply static MAC; returns normalized MAC
+	GetMACAddress(vm *object.VirtualMachine) (string, error)            // Read assigned MAC from last NIC
 	PowerOn(vm *object.VirtualMachine) error
 	PowerOff(vm *object.VirtualMachine) error
 	Delete(vm *object.VirtualMachine) error

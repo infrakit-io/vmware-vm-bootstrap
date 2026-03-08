@@ -108,6 +108,7 @@ func wireSuccessfulMocks(vc *vcmocks.ClientInterface, creator *vmmocks.CreatorIn
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
 	creator.On("PowerOff", vm).Return(nil)
 	creator.On("Delete", vm).Maybe().Return(nil) // only called in defer cleanup on failure
@@ -303,6 +304,7 @@ func TestBootstrap_UploadUbuntuFails(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("Delete", vm).Return(nil)
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
@@ -338,6 +340,7 @@ func TestBootstrap_MountISOsFails(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("Delete", vm).Return(nil)
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
@@ -374,6 +377,7 @@ func TestBootstrap_PowerOnFails(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(errors.New("power on failed"))
 	creator.On("Delete", vm).Return(nil)
 
@@ -410,6 +414,7 @@ func TestBootstrap_ISODownloadFails_cleansUpVM(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("Delete", vm).Return(nil) // VM cleanup on failure
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
@@ -477,6 +482,7 @@ func TestBootstrap_InvalidNetmask(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("Delete", vm).Return(nil)
 	isoMgr.On("DeleteFromDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -542,6 +548,7 @@ func TestBootstrap_WithDataDisk(t *testing.T) {
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)  // OS disk
 	creator.On("AddDisk", vm, mock.Anything, int64(100), int32(0)).Return(nil) // data disk
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
 	creator.On("PowerOff", vm).Return(nil)
 
@@ -594,6 +601,7 @@ func TestBootstrap_PasswordHashPrecedence(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
 	creator.On("PowerOff", vm).Return(nil)
 
@@ -663,6 +671,7 @@ func TestBootstrap_PasswordIsHashed(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
 	creator.On("PowerOff", vm).Return(nil)
 
@@ -715,6 +724,7 @@ func TestBootstrap_NoPasswordKeyOnly(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
 	creator.On("PowerOff", vm).Return(nil)
 
@@ -760,6 +770,7 @@ func TestBootstrap_UploadNoCloudFails(t *testing.T) {
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
 	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
+	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("Delete", vm).Return(nil)
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)

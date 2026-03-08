@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
@@ -233,6 +234,26 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		return nil, fmt.Errorf("failed to add network adapter: %w", err)
 	}
 
+	// STEP 9b: Apply static MAC address (if specified) or extract auto-assigned MAC
+	var assignedMAC string
+	if mac := strings.TrimSpace(cfg.MACAddress); mac != "" {
+		applied, err := creator.SetMACAddress(createdVM, mac)
+		if err != nil {
+			return nil, fmt.Errorf("failed to set MAC address: %w", err)
+		}
+		assignedMAC = applied
+		logger.Info("Static MAC address applied", "mac", assignedMAC)
+	} else {
+		// Extract auto-assigned MAC for persistence/recreation
+		got, err := creator.GetMACAddress(createdVM)
+		if err != nil {
+			logger.Warn("Could not read auto-assigned MAC address", "error", err)
+		} else {
+			assignedMAC = got
+			logger.Info("Auto-assigned MAC address captured", "mac", assignedMAC)
+		}
+	}
+
 	logger.Info("VM hardware configuration complete")
 
 	provisioner, err := b.resolveProfile(cfg.Profile)
@@ -333,6 +354,7 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 	return &VM{
 		Name:            cfg.Name,
 		IPAddress:       cfg.IPAddress,
+		MACAddress:      assignedMAC,
 		ManagedObject:   createdVM.Reference(),
 		SSHReady:        !skipSSHVerify,
 		Hostname:        cfg.Name,

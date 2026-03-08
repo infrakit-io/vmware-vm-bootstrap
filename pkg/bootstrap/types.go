@@ -3,6 +3,8 @@ package bootstrap
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
 	"github.com/Bibi40k/vmware-vm-bootstrap/internal/utils"
@@ -29,6 +31,7 @@ type VMConfig struct {
 	// === Network Configuration ===
 	NetworkName      string   // Network name (e.g., "LAN_Management")
 	NetworkInterface string   // Guest NIC name (e.g., "ens192")
+	MACAddress       string   // Optional static MAC address (e.g., "00:50:56:aa:bb:cc")
 	IPAddress        string   // Static IP address (e.g., "192.168.1.10")
 	Netmask          string   // Network mask (e.g., "255.255.255.0")
 	Gateway          string   // Default gateway (e.g., "192.168.1.1")
@@ -89,6 +92,7 @@ type TalosProfile struct {
 type VM struct {
 	Name          string                       // VM name
 	IPAddress     string                       // Assigned IP address
+	MACAddress    string                       // Assigned MAC address (auto or static)
 	ManagedObject types.ManagedObjectReference // govmomi VM reference
 	SSHReady      bool                         // SSH port 22 accessible
 	Hostname      string                       // Configured hostname
@@ -170,8 +174,13 @@ func (cfg *VMConfig) Validate() error {
 	if err := utils.ValidateNetworkConfig(cfg.IPAddress, cfg.Netmask, cfg.Gateway, cfg.DNS); err != nil {
 		return err
 	}
+	if mac := strings.TrimSpace(cfg.MACAddress); mac != "" && !macAddressRe.MatchString(strings.ToLower(mac)) {
+		return fmt.Errorf("invalid MACAddress format: %q (expected aa:bb:cc:dd:ee:ff)", cfg.MACAddress)
+	}
 	return nil
 }
+
+var macAddressRe = regexp.MustCompile(`^[0-9a-f]{2}(:[0-9a-f]{2}){5}$`)
 
 // SetDefaults sets default values for optional fields from configs/defaults.yaml.
 func (cfg *VMConfig) SetDefaults() {

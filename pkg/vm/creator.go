@@ -4,6 +4,7 @@ package vm
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Bibi40k/vmware-vm-bootstrap/configs"
 	"github.com/vmware/govmomi/object"
@@ -169,6 +170,54 @@ func (c *Creator) AddNetworkAdapter(vm *object.VirtualMachine, network object.Ne
 	}
 
 	return vm.AddDevice(c.ctx, netdev)
+}
+
+// SetMACAddress applies a static MAC address to the last NIC on the VM.
+// Returns the normalized (lowercase) MAC that was set.
+func (c *Creator) SetMACAddress(vm *object.VirtualMachine, mac string) (string, error) {
+	devices, err := vm.Device(c.ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get VM devices: %w", err)
+	}
+	nics := devices.SelectByType((*types.VirtualEthernetCard)(nil))
+	if len(nics) == 0 {
+		return "", fmt.Errorf("no network adapter found")
+	}
+	nic := nics[len(nics)-1].(types.BaseVirtualEthernetCard)
+	card := nic.GetVirtualEthernetCard()
+	card.AddressType = "manual"
+	card.MacAddress = strings.ToLower(mac)
+
+	spec := types.VirtualMachineConfigSpec{
+		DeviceChange: []types.BaseVirtualDeviceConfigSpec{
+			&types.VirtualDeviceConfigSpec{
+				Operation: types.VirtualDeviceConfigSpecOperationEdit,
+				Device:    nics[len(nics)-1],
+			},
+		},
+	}
+	task, err := vm.Reconfigure(c.ctx, spec)
+	if err != nil {
+		return "", fmt.Errorf("failed to reconfigure VM: %w", err)
+	}
+	if err := task.Wait(c.ctx); err != nil {
+		return "", fmt.Errorf("failed to apply MAC address: %w", err)
+	}
+	return strings.ToLower(mac), nil
+}
+
+// GetMACAddress reads the MAC address from the last NIC on the VM.
+func (c *Creator) GetMACAddress(vm *object.VirtualMachine) (string, error) {
+	devices, err := vm.Device(c.ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to get VM devices: %w", err)
+	}
+	nics := devices.SelectByType((*types.VirtualEthernetCard)(nil))
+	if len(nics) == 0 {
+		return "", fmt.Errorf("no network adapter found")
+	}
+	card := nics[len(nics)-1].(types.BaseVirtualEthernetCard).GetVirtualEthernetCard()
+	return strings.ToLower(card.MacAddress), nil
 }
 
 // PowerOn powers on the VM.

@@ -1,6 +1,7 @@
 package vcenter
 
 import (
+	"net"
 	"strings"
 
 	"github.com/vmware/govmomi/vim25/mo"
@@ -132,6 +133,52 @@ func (c *Client) ListResourcePools(datacenter string) ([]ResourcePoolInfo, error
 		result = append(result, ResourcePoolInfo{Name: name})
 	}
 	return result, nil
+}
+
+// VMGuestIPInfo holds best-effort guest IP information reported by vCenter tools.
+// IP can be empty/stale when VMware Tools data is unavailable.
+type VMGuestIPInfo struct {
+	Name string
+	IP   string
+}
+
+// ListVMGuestIPs returns VM name -> reported guest IPv4 address for a datacenter.
+// This is best-effort information sourced from guest tools.
+func (c *Client) ListVMGuestIPs(datacenter string) ([]VMGuestIPInfo, error) {
+	dc, err := c.FindDatacenter(datacenter)
+	if err != nil {
+		return nil, err
+	}
+	c.finder.SetDatacenter(dc)
+
+	vms, err := c.finder.VirtualMachineList(c.ctx, "*")
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]VMGuestIPInfo, 0, len(vms))
+	for _, vm := range vms {
+		var moVM mo.VirtualMachine
+		if err := vm.Properties(c.ctx, vm.Reference(), []string{"name", "guest.ipAddress"}, &moVM); err != nil {
+			continue
+		}
+		if moVM.Guest == nil {
+			continue
+		}
+		ip := strings.TrimSpace(moVM.Guest.IpAddress)
+		if ip == "" {
+			continue
+		}
+		parsed := net.ParseIP(ip)
+		if parsed == nil || parsed.To4() == nil {
+			continue
+		}
+		out = append(out, VMGuestIPInfo{
+			Name: moVM.Name,
+			IP:   parsed.String(),
+		})
+	}
+	return out, nil
 }
 
 // inferStorageType infers SSD vs HDD from the datastore name (matches Python heuristic).
