@@ -16,3 +16,4 @@ jobs:
     with:
       coverage-badge: true
       coverage-exclude-pattern: '/examples\|/scripts\|/mocks\|/cmd'
+      coverage-threshold: 70
