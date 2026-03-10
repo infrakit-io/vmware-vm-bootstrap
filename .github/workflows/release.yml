@@ -16,6 +16,7 @@ jobs:
     uses: infrakit-io/repo-standards-kit/.github/workflows/go-release.yml@v1
     permissions:
       contents: write
+      actions: read
     with:
       binary-name: vmbootstrap
       build-path: ./cmd/vmbootstrap
