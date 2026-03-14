@@ -1,10 +1,10 @@
 # vmware-vm-bootstrap
 
-![CI](https://github.com/Bibi40k/vmware-vm-bootstrap/actions/workflows/ci.yml/badge.svg)
-![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/Bibi40k/vmware-vm-bootstrap/master/docs/coverage/coverage.json)
-[![Go Report Card](https://goreportcard.com/badge/github.com/Bibi40k/vmware-vm-bootstrap)](https://goreportcard.com/report/github.com/Bibi40k/vmware-vm-bootstrap)
-![Go Version](https://img.shields.io/github/go-mod/go-version/Bibi40k/vmware-vm-bootstrap)
-![Release](https://img.shields.io/github/v/release/Bibi40k/vmware-vm-bootstrap)
+![CI](https://github.com/infrakit-io/vmware-vm-bootstrap/actions/workflows/ci.yml/badge.svg)
+![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/infrakit-io/vmware-vm-bootstrap/master/docs/coverage/coverage.json)
+[![Go Report Card](https://goreportcard.com/badge/github.com/infrakit-io/vmware-vm-bootstrap)](https://goreportcard.com/report/github.com/infrakit-io/vmware-vm-bootstrap)
+![Go Version](https://img.shields.io/github/go-mod/go-version/infrakit-io/vmware-vm-bootstrap)
+![Release](https://img.shields.io/github/v/release/infrakit-io/vmware-vm-bootstrap)
 
 **Go library for automated VM lifecycle in VMware vSphere (profile-driven: Ubuntu/Talos).**
 
@@ -22,7 +22,7 @@
 ## Installation
 
 ```bash
-go get github.com/Bibi40k/vmware-vm-bootstrap
+go get github.com/infrakit-io/vmware-vm-bootstrap
 ```
 
 ## Quick Start (Library)
@@ -33,7 +33,7 @@ package main
 import (
     "context"
     "log"
-    "github.com/Bibi40k/vmware-vm-bootstrap/pkg/bootstrap"
+    "github.com/infrakit-io/vmware-vm-bootstrap/pkg/bootstrap"
 )
 
 func main() {
@@ -123,7 +123,7 @@ Security note:
 
 ## Bootstrap Result (for downstream automation)
 
-If you want to feed the bootstrap output into another tool (e.g., `github.com/Bibi40k/talos-docker-bootstrap`), you can save a normalized result file:
+If you want to feed the bootstrap output into another tool (e.g., `github.com/infrakit-io/talos-docker-bootstrap`), you can save a normalized result file:
 
 ```bash
 vmbootstrap run --bootstrap-result tmp/bootstrap-result.yaml
@@ -182,7 +182,7 @@ Default values (from `configs/defaults.yaml`):
 
 ```bash
 # Install CLI
-go install github.com/Bibi40k/vmware-vm-bootstrap/cmd/vmbootstrap@latest
+go install github.com/infrakit-io/vmware-vm-bootstrap/cmd/vmbootstrap@latest
 
 # Bootstrap from a selected config
 vmbootstrap run
@@ -266,7 +266,7 @@ git push origin v0.1.0
 
 ## Documentation
 
-See [pkg.go.dev](https://pkg.go.dev/github.com/Bibi40k/vmware-vm-bootstrap) for full API documentation.
+See [pkg.go.dev](https://pkg.go.dev/github.com/infrakit-io/vmware-vm-bootstrap) for full API documentation.
 
 Ubuntu support matrix: see [docs/UBUNTU_SUPPORT.md](docs/UBUNTU_SUPPORT.md).
 
