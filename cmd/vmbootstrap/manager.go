@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	survey "github.com/AlecAivazis/survey/v2"
-	surveyterm "github.com/AlecAivazis/survey/v2/terminal"
 	wizard "github.com/infrakit-io/cli-wizard-core"
 	"gopkg.in/yaml.v3"
 )
@@ -49,18 +46,10 @@ func runManager() error {
 			labels = append(labels, it.label)
 		}
 
-		var choice string
-		if err := survey.AskOne(&survey.Select{
-			Message: "Select:",
-			Options: labels,
-		}, &choice); err != nil {
-			if errors.Is(err, surveyterm.InterruptErr) {
-				return wizard.ErrInterrupted
-			}
-			return nil
+		choice := sel.Select(labels, "", "Select:")
+		if sel.WasInterrupted() {
+			return wizard.ErrInterrupted
 		}
-		// Drain any CPR responses survey left in stdin before any readLine calls.
-		drainStdin()
 
 		for _, it := range items {
 			if it.label == choice {
@@ -156,8 +145,16 @@ func listDrafts(all bool) []draftInfo {
 	var items []item
 	for _, p := range matches {
 		base := filepath.Base(p)
-		targetBase := strings.Split(base, ".draft.")[0]
-		targetPath := filepath.Join("configs", targetBase)
+		token := strings.Split(base, ".draft.")[0]
+		// token uses "__" as path separator (wizard.DraftTargetToken format).
+		// Convert back to a native path; fall back to configs/<token> for old-style drafts.
+		var targetPath string
+		if strings.Contains(token, "__") {
+			targetPath = strings.ReplaceAll(token, "__", string(filepath.Separator))
+		} else {
+			targetPath = filepath.Join("configs", token)
+		}
+		targetBase := filepath.Base(targetPath)
 		kind := detectDraftKind(p, targetBase)
 		fi, _ := os.Stat(p)
 		mt := time.Time{}
@@ -272,16 +269,10 @@ func selectVMConfig(title, prompt string) (string, string, error) {
 	options = append(options, "Exit")
 
 	fmt.Printf("\n%s\n%s\n", title, strings.Repeat("─", 50))
-	var selected string
-	if err := survey.AskOne(&survey.Select{
-		Message: prompt,
-		Options: options,
-		Default: labels[0],
-	}, &selected); err != nil {
+	selected := sel.Select(options, labels[0], prompt)
+	if sel.WasInterrupted() {
 		return "", "", nil
 	}
-	// Clear delayed terminal control responses left by survey rendering.
-	drainStdin()
 	if selected == "Exit" {
 		fmt.Println()
 		return "", "", nil

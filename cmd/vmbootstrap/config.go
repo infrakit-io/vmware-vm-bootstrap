@@ -18,13 +18,15 @@ import (
 	"time"
 	"unicode"
 
-	survey "github.com/AlecAivazis/survey/v2"
+	wizard "github.com/infrakit-io/cli-wizard-core"
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
 	"github.com/chzyer/readline"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 )
+
+var sel = wizard.NewSelector()
 
 // VMWizardOutput is the YAML structure for vm.*.sops.yaml files.
 type VMWizardOutput struct {
@@ -184,7 +186,7 @@ func selectContentLibraryInteractive(vc *vcenterFileConfig, currentName, current
 		defaultChoice = libs[0]
 	}
 
-	choice := interactiveSelect(options, defaultChoice, "Talos content library:")
+	choice := sel.Select(options, defaultChoice, "Talos content library:")
 	switch choice {
 	case backOption:
 		return currentName, currentID
@@ -415,7 +417,7 @@ func runVMNetworkStep(vm *VMWizardOutput, resources *VCenterResources, defaults 
 		}
 		vm.VM.NetworkName = readLine("Network name", strOrDefault(vm.VM.NetworkName, defaults.NetworkName))
 	} else {
-		vm.VM.NetworkName = interactiveSelect(vcenterNetworkLeafNames(resources.Networks), strOrDefault(vm.VM.NetworkName, defaults.NetworkName), "Network:")
+		vm.VM.NetworkName = sel.Select(vcenterNetworkLeafNames(resources.Networks), strOrDefault(vm.VM.NetworkName, defaults.NetworkName), "Network:")
 	}
 	vm.VM.NetworkInterface = readLine("Guest NIC name", strOrDefault(vm.VM.NetworkInterface, configs.Defaults.Network.Interface))
 	vm.VM.IPAddress = readIPLine("IP address", vm.VM.IPAddress)
@@ -720,7 +722,7 @@ func saveAndEncrypt(path string, v interface{}, draftPath string) error {
 		}
 		dp := pathOverride
 		if dp == "" {
-			dp, _ = writeDraft(path, plaintext)
+			dp, _ = wizard.WriteDraft(path, plaintext)
 		}
 		if dp != "" {
 			return &userError{
@@ -739,39 +741,12 @@ func saveAndEncrypt(path string, v interface{}, draftPath string) error {
 		}
 		return err
 	}
-	if err := cleanupDrafts(path); err != nil {
+	if err := wizard.CleanupDrafts(path); err != nil {
 		return fmt.Errorf("cleanup drafts: %w", err)
 	}
 	return nil
 }
 
-func writeDraft(targetPath string, plaintext []byte) (string, error) {
-	if err := os.MkdirAll("tmp", 0700); err != nil {
-		return "", err
-	}
-	base := filepath.Base(targetPath)
-	ts := time.Now().Format("20060102-150405")
-	draftPath := filepath.Join("tmp", fmt.Sprintf("%s.draft.%s.yaml", base, ts))
-	if err := os.WriteFile(draftPath, plaintext, 0600); err != nil {
-		return "", err
-	}
-	return draftPath, nil
-}
-
-func cleanupDrafts(targetPath string) error {
-	base := filepath.Base(targetPath)
-	pattern := filepath.Join("tmp", fmt.Sprintf("%s.draft.*.yaml", base))
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return err
-	}
-	for _, p := range matches {
-		if rmErr := os.Remove(p); rmErr != nil && !os.IsNotExist(rmErr) {
-			return rmErr
-		}
-	}
-	return nil
-}
 
 // startDraftInterruptHandler saves plaintext drafts on Ctrl+C and asks whether to keep them.
 func startDraftInterruptHandler(targetPath, draftPath string, dataFn func() ([]byte, bool)) func() {
@@ -783,7 +758,7 @@ func startDraftInterruptHandler(targetPath, draftPath string, dataFn func() ([]b
 		if data, ok := dataFn(); ok {
 			path := draftPath
 			if path == "" {
-				path, _ = writeDraft(targetPath, data)
+				path, _ = wizard.WriteDraft(targetPath, data)
 			} else {
 				_ = os.MkdirAll("tmp", 0700)
 				_ = os.WriteFile(path, data, 0600)
@@ -794,7 +769,7 @@ func startDraftInterruptHandler(targetPath, draftPath string, dataFn func() ([]b
 			}
 		}
 		fmt.Println("\nCancelled.")
-		restoreTTYOnExit()
+		wizard.RestoreTTY()
 		os.Exit(0)
 	}()
 	return func() {
@@ -1045,8 +1020,7 @@ func selectDatastore(datastores []vcenter.DatastoreInfo, requiredGB float64, def
 		}
 	}
 
-	var choice string
-	surveySelect(&survey.Select{Message: "Select datastore:", Options: opts, Default: defaultOpt}, &choice)
+	choice := sel.Select(opts, defaultOpt, "Select datastore:")
 	for i, opt := range opts {
 		if opt == choice {
 			return dsNames[i]
@@ -1070,12 +1044,7 @@ func selectFolder(folders []vcenter.FolderInfo, defaultFolder, message string) s
 		}
 	}
 
-	var choice string
-	surveySelect(&survey.Select{
-		Message: message,
-		Options: opts,
-		Default: defaultOpt,
-	}, &choice)
+	choice := sel.Select(opts, defaultOpt, message)
 	for i, opt := range opts {
 		if opt == choice {
 			return names[i]
@@ -1099,171 +1068,10 @@ func selectResourcePool(pools []vcenter.ResourcePoolInfo, defaultPool, message s
 		}
 	}
 
-	var choice string
-	surveySelect(&survey.Select{
-		Message: message,
-		Options: opts,
-		Default: defaultOpt,
-	}, &choice)
+	choice := sel.Select(opts, defaultOpt, message)
 	return choice
 }
 
-// interactiveSelect renders a navigable list in raw terminal mode.
-// ↑/↓ arrows move the selection; Enter confirms.
-// Does NOT send cursor-position queries (no \033[6n), so it leaves no CPR bytes
-// in stdin — immune to the issue that affects consecutive survey.Select calls.
-func interactiveSelect(items []string, defaultItem, message string) string {
-	if len(items) == 0 {
-		return defaultItem
-	}
-
-	sel := 0
-	for i, item := range items {
-		if item == defaultItem {
-			sel = i
-			break
-		}
-	}
-
-	fd := int(os.Stdin.Fd())
-	oldState, err := term.MakeRaw(fd)
-	if err != nil {
-		// Fallback: numbered list with readline input.
-		return selectFromList(items, defaultItem, message)
-	}
-
-	const maxVisible = 10
-	nVis := len(items)
-	if nVis > maxVisible {
-		nVis = maxVisible
-	}
-	offset := 0
-
-	clamp := func() {
-		if sel < offset {
-			offset = sel
-		} else if sel >= offset+nVis {
-			offset = sel - nVis + 1
-		}
-	}
-
-	// Lines rendered: 1 header + nVis items + 1 footer = nVis+2
-	total := nVis + 2
-
-	draw := func(initial bool) {
-		if !initial {
-			fmt.Printf("\033[%dA", total) // move cursor back to top of block
-		}
-		clamp()
-		fmt.Printf("\r  \033[1m%s\033[0m\033[K\r\n", message)
-		for i := offset; i < offset+nVis; i++ {
-			if i == sel {
-				fmt.Printf("\r  \033[36m❯ %s\033[0m\033[K\r\n", items[i])
-			} else {
-				fmt.Printf("\r    %s\033[K\r\n", items[i])
-			}
-		}
-		if len(items) > nVis {
-			fmt.Printf("\r  \033[2m%d/%d · ↑↓ arrows · Enter\033[0m\033[K\r\n", sel+1, len(items))
-		} else {
-			fmt.Printf("\r  \033[2m↑↓ arrows · Enter\033[0m\033[K\r\n")
-		}
-	}
-
-	draw(true)
-
-	buf := make([]byte, 8)
-	for {
-		n, err := os.Stdin.Read(buf)
-		if err != nil || n == 0 {
-			break
-		}
-		if n == 1 {
-			switch buf[0] {
-			case '\r', '\n': // Enter
-				result := items[sel]
-				_ = term.Restore(fd, oldState)
-				stdinReader.Reset(os.Stdin)
-				fmt.Printf("\033[%dA", total)
-				fmt.Printf("\r  \033[32m❯\033[0m %s \033[36m%s\033[0m\r\n", message, result)
-				fmt.Printf("\033[J") // clear everything below
-				return result
-			case 3: // Ctrl+C
-				_ = term.Restore(fd, oldState)
-				stdinReader.Reset(os.Stdin)
-				fmt.Printf("\r\n")
-				return defaultItem
-			}
-		} else if n >= 3 && buf[0] == '\033' && buf[1] == '[' {
-			switch buf[2] {
-			case 'A': // up
-				if sel > 0 {
-					sel--
-				} else {
-					sel = len(items) - 1
-				}
-				draw(false)
-			case 'B': // down
-				if sel < len(items)-1 {
-					sel++
-				} else {
-					sel = 0
-				}
-				draw(false)
-			}
-		}
-	}
-
-	_ = term.Restore(fd, oldState)
-	stdinReader.Reset(os.Stdin)
-	return items[sel]
-}
-
-// selectFromList is the fallback when raw mode is unavailable.
-// Shows a numbered list and reads the selection via readline.
-func selectFromList(items []string, defaultItem, label string) string {
-	if len(items) == 0 {
-		return defaultItem
-	}
-	fmt.Printf("  %s\n", label)
-	defaultIdx := 1
-	for i, item := range items {
-		marker := "  "
-		if item == defaultItem {
-			marker = "» "
-			defaultIdx = i + 1
-		}
-		fmt.Printf("   %s%d. %s\n", marker, i+1, item)
-	}
-
-	prompt := fmt.Sprintf("  Select [1-%d] [\033[36m%d\033[0m]: ", len(items), defaultIdx)
-	rl, err := readline.NewEx(&readline.Config{Prompt: prompt})
-	if err != nil {
-		n := readInt(fmt.Sprintf("Select [1-%d]", len(items)), defaultIdx, 1, len(items))
-		return items[n-1]
-	}
-	defer func() {
-		_ = rl.Close()
-		stdinReader.Reset(os.Stdin)
-	}()
-
-	for {
-		line, err := rl.Readline()
-		if err != nil {
-			return items[defaultIdx-1]
-		}
-		line = strings.TrimSpace(line)
-		if line == "" {
-			return items[defaultIdx-1]
-		}
-		v, err := strconv.Atoi(line)
-		if err != nil || v < 1 || v > len(items) {
-			fmt.Printf("  Must be a number between 1 and %d\n", len(items))
-			continue
-		}
-		return items[v-1]
-	}
-}
 
 // selectISODatastore shows all datastores with ★ for the top HDD candidates
 // (ISOs are written once and rarely accessed, so HDD is the right choice).
@@ -1313,8 +1121,7 @@ func selectISODatastore(datastores []vcenter.DatastoreInfo, defaultDS string) st
 		return defaultDS
 	}
 
-	var choice string
-	surveySelect(&survey.Select{Message: "Select ISO datastore:", Options: opts}, &choice)
+	choice := sel.Select(opts, "", "Select ISO datastore:")
 	for i, opt := range opts {
 		if opt == choice {
 			return dsNames[i]
@@ -1348,12 +1155,7 @@ func buildUbuntuOptions() []string {
 
 func selectOSProfile(defaultProfile string) string {
 	options := []string{"ubuntu", "talos"}
-	var profileChoice string
-	surveySelect(&survey.Select{
-		Message: "OS profile:",
-		Options: options,
-		Default: defaultProfile,
-	}, &profileChoice)
+	profileChoice := sel.Select(options, defaultProfile, "OS profile:")
 	return profileChoice
 }
 
@@ -1366,12 +1168,7 @@ func selectUbuntuVersion(target *string) {
 			break
 		}
 	}
-	var ubuntuChoice string
-	surveySelect(&survey.Select{
-		Message: "Ubuntu version:",
-		Options: ubuntuOptions,
-		Default: defaultUbuntu,
-	}, &ubuntuChoice)
+	ubuntuChoice := sel.Select(ubuntuOptions, defaultUbuntu, "Ubuntu version:")
 	*target = strings.Split(ubuntuChoice, " ")[0]
 }
 
@@ -1416,12 +1213,7 @@ func selectTalosVersion(current string) string {
 			break
 		}
 	}
-	var choice string
-	surveySelect(&survey.Select{
-		Message: "Talos version:",
-		Options: options,
-		Default: defaultOption,
-	}, &choice)
+	choice := sel.Select(options, defaultOption, "Talos version:")
 	if choice == "Custom version..." {
 		return readLine("Talos version (e.g. v1.12.0)", defaultVersion)
 	}
@@ -1704,7 +1496,7 @@ func readPromptLine(prompt string) string {
 		if errors.Is(err, readline.ErrInterrupt) {
 			// Restore terminal before signal handler (it may os.Exit immediately).
 			cleanup()
-			restoreTTYOnExit()
+			wizard.RestoreTTY()
 			promptInterrupted.Store(true)
 			if p, findErr := os.FindProcess(os.Getpid()); findErr == nil {
 				_ = p.Signal(os.Interrupt)
@@ -1746,14 +1538,6 @@ func sanitizeConsoleInput(raw string) string {
 	return strings.TrimSpace(raw)
 }
 
-// surveySelect wraps survey.AskOne for a Select prompt and calls drainStdin()
-// afterward to discard any CPR responses (\033[row;colR) that the terminal
-// may have queued in stdin in response to survey's \033[6n cursor queries.
-// Without this drain, those responses appear as garbage in subsequent readLine calls.
-func surveySelect(q *survey.Select, response *string) {
-	_ = survey.AskOne(q, response)
-	drainStdin()
-}
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 

@@ -164,7 +164,7 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 			}
 		}
 		fmt.Printf("\n\033[33m⚠ VM already exists: %s\033[0m\n", cfg.Name)
-		choice := interactiveSelect(
+		choice := sel.Select(
 			[]string{
 				"Cancel",
 				"Delete existing VM and recreate",

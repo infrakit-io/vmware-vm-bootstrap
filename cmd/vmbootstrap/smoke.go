@@ -115,7 +115,7 @@ func smokeVM(vmConfigPath string, cleanup bool) error {
 	// If VM already exists, ask whether to reuse or recreate.
 	if exists, err := vmExists(cfg); err == nil && exists {
 		fmt.Printf("\n\033[33m⚠ VM already exists: %s\033[0m\n", cfg.Name)
-		choice := interactiveSelect(
+		choice := sel.Select(
 			[]string{
 				"Reuse existing VM",
 				"Create new VM (delete existing)",

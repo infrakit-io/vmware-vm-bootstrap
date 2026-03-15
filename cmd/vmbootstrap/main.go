@@ -120,14 +120,14 @@ func main() {
 	signal.Notify(mainSigCh, os.Interrupt)
 	go func() {
 		<-mainSigCh
-		restoreTTYOnExit()
+		wizard.RestoreTTY()
 		fmt.Println("\nCancelled.")
 		os.Exit(0)
 	}()
 
 	if err := rootCmd.Execute(); err != nil {
 		if wizard.IsInterrupted(err) {
-			restoreTTYOnExit()
+			wizard.RestoreTTY()
 			fmt.Println("\nCancelled.")
 			if debugCleanup != nil {
 				debugCleanup()

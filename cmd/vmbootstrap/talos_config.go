@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	survey "github.com/AlecAivazis/survey/v2"
+	wizard "github.com/infrakit-io/cli-wizard-core"
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"gopkg.in/yaml.v3"
 )
@@ -80,11 +80,11 @@ func runTalosConfigWizardWithDraft(draftPath string) error {
 	fmt.Println()
 
 	if draftPath == "" {
-		draftPath = latestDraftForTarget(talosSchematicsConfigFile)
+		draftPath = wizard.LatestDraftForTarget(talosSchematicsConfigFile)
 	}
 
 	cfg := &talosSchematicsFile{}
-	if loaded, err := loadDraftYAML(draftPath, cfg); err == nil && loaded {
+	if loaded, err := wizard.LoadDraftYAML(draftPath, cfg); err == nil && loaded {
 		fmt.Printf("\033[33m⚠ Resuming draft: %s\033[0m\n\n", filepath.Base(draftPath))
 	} else {
 		loadedCfg, err := loadTalosSchematics(talosSchematicsConfigFile)
@@ -117,7 +117,7 @@ func runTalosConfigWizardWithDraft(draftPath string) error {
 		selected   []string
 		cancelled  bool
 	)
-	if err := runWizardSteps([]WizardStep{
+	if err := wizard.DefaultRunSteps([]WizardStep{
 		{
 			Name: "Schematic Metadata",
 			Run: func() error {
@@ -270,7 +270,7 @@ func selectTalosSchematicID(current string) string {
 		if defaultOption == "" {
 			defaultOption = options[0]
 		}
-		choice := interactiveSelect(options, defaultOption, "Talos schematic:")
+		choice := sel.Select(options, defaultOption, "Talos schematic:")
 		switch choice {
 		case "Custom schematic ID...":
 			return strings.TrimSpace(readLine("Talos schematic ID", current))
@@ -323,50 +323,26 @@ func selectTalosExtensions(catalog, recommended, defaults []string) []string {
 		defaultSelected = append(defaultSelected, recommendedList[0])
 	}
 
-	var selected []string
-	if err := survey.AskOne(&survey.MultiSelect{
-		Message: "Select recommended extensions:",
-		Options: recommendedList,
-		Default: defaultSelected,
-		PageSize: func() int {
-			if len(recommendedList) < 10 {
-				return len(recommendedList)
-			}
-			return 10
-		}(),
-	}, &selected); err != nil {
-		drainStdin()
+	selected := sel.MultiSelect(recommendedList, defaultSelected, "Select recommended extensions:")
+	if sel.WasInterrupted() {
 		fmt.Println("  Cancelled.")
 		return nil
 	}
-	drainStdin()
 
 	if len(ordered) > len(recommendedList) {
-		action := interactiveSelect(
+		action := sel.Select(
 			[]string{"Continue", "Load full extension list"},
 			"Continue",
 			"Next step:",
 		)
 		if action == "Load full extension list" {
 			fullDefault := uniqueSorted(selected)
-			var fullSelected []string
-			if err := survey.AskOne(&survey.MultiSelect{
-				Message: "Select extensions (full list):",
-				Options: ordered,
-				Default: fullDefault,
-				PageSize: func() int {
-					if len(ordered) < 14 {
-						return len(ordered)
-					}
-					return 14
-				}(),
-			}, &fullSelected); err != nil {
-				drainStdin()
+			fullSelected := sel.MultiSelect(ordered, fullDefault, "Select extensions (full list):")
+			if sel.WasInterrupted() {
 				// ESC/Ctrl+C here should just close full list and keep recommended selection.
 				fmt.Println("  Full list closed.")
 				fullSelected = fullDefault
 			}
-			drainStdin()
 			selected = fullSelected
 		}
 	}
