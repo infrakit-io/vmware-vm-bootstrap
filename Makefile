@@ -13,9 +13,8 @@ endef
 .PHONY: FORCE help install-task
 
 help:
-	$(_require_task)
-	@printf "\033[1;33mBootstrap:\033[0m make install-task\n\n"
-	@$(_TASK) --list
+	@printf "\033[1;33mBootstrap:\033[0m make install-task\n"
+	@printf "Use \033[1mtask\033[0m for available commands.\n"
 
 install-task:
 	@go install github.com/go-task/task/v3/cmd/task@latest
