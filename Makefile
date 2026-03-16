@@ -14,12 +14,20 @@ endef
 
 help:
 	$(_require_task)
+	@printf "\033[1;33mBootstrap:\033[0m make install-task\n\n"
 	@$(_TASK) --list
 
 install-task:
 	@go install github.com/go-task/task/v3/cmd/task@latest
-	@printf "Installed go-task to $$(go env GOPATH)/bin/task\n"
-	@printf "Add to PATH: export PATH=\"\$$HOME/go/bin:\$$PATH\"\n"
+	@GOBIN="$$(go env GOPATH)/bin"; \
+	printf "Installed: $$GOBIN/task\n"; \
+	if echo "$$PATH" | tr ':' '\n' | grep -qxF "$$GOBIN"; then \
+	  printf "\033[1;32mReady:\033[0m task is available now.\n"; \
+	else \
+	  grep -qE '^[^#].*HOME/go/bin' ~/.bashrc 2>/dev/null || echo 'export PATH="$$HOME/go/bin:$$PATH"' >> ~/.bashrc; \
+	  printf "Added \$$HOME/go/bin to ~/.bashrc\n\n"; \
+	  printf "\033[1;33mRun now to activate:\033[0m source ~/.bashrc\n"; \
+	fi
 
 # Prevent Make from trying to remake the Makefile itself via %: catch-all
 Makefile GNUmakefile: ;
