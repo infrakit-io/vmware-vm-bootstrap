@@ -292,7 +292,7 @@ func selectVMConfig(title, prompt string) (string, string, error) {
 func checkRequiredFiles() []string {
 	var missing []string
 	for _, f := range []string{"vcenter.sops.yaml", "defaults.yaml"} {
-		if _, err := os.Stat(filepath.Join("configs", f)); os.IsNotExist(err) {
+		if _, err := os.Stat(resolveConfigPath(filepath.Join("configs", f))); os.IsNotExist(err) {
 			missing = append(missing, f)
 		}
 	}
