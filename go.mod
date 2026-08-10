@@ -2,6 +2,8 @@ module github.com/infrakit-io/vmware-vm-bootstrap
 
 go 1.26.1
 
+toolchain go1.26.5
+
 require (
 	github.com/chzyer/readline v1.5.1
 	github.com/google/uuid v1.6.0
