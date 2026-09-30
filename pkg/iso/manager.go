@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -71,8 +72,30 @@ func GetUbuntuReleases() map[string]UbuntuRelease {
 	return result
 }
 
-// DownloadUbuntu downloads Ubuntu Server ISO with optional SHA256 verification.
-// Returns local path to downloaded/cached ISO.
+// sha256HexRe matches a SHA256 digest written as 64 hex characters.
+var sha256HexRe = regexp.MustCompile(`^[0-9a-fA-F]{64}$`)
+
+// normalizeChecksum validates a configured SHA256 checksum and returns it in
+// lowercase. An empty or malformed checksum is an error: the ISO is the root of
+// trust for every VM built from it, so an unverifiable image is never used.
+func normalizeChecksum(version, checksum string) (string, error) {
+	checksum = strings.TrimSpace(checksum)
+	if checksum == "" {
+		return "", fmt.Errorf("ubuntu %s has no SHA256 checksum in configs/ubuntu-releases.yaml; "+
+			"refusing to use an unverified ISO (add the value from the release's signed SHA256SUMS)", version)
+	}
+	if !sha256HexRe.MatchString(checksum) {
+		return "", fmt.Errorf("ubuntu %s checksum %q in configs/ubuntu-releases.yaml is not a SHA256 hex digest", version, checksum)
+	}
+	return strings.ToLower(checksum), nil
+}
+
+// DownloadUbuntu downloads the Ubuntu Server ISO and verifies its SHA256
+// against the checksum pinned in configs/ubuntu-releases.yaml.
+// The checksum is mandatory: a release without one is refused, a cached ISO
+// that does not match is discarded and re-downloaded, and a downloaded ISO that
+// does not match is deleted and refused. Returns the local path to the
+// verified ISO.
 func (m *Manager) DownloadUbuntu(version string) (string, error) {
 	releases := GetUbuntuReleases()
 	release, ok := releases[version]
@@ -85,36 +108,36 @@ func (m *Manager) DownloadUbuntu(version string) (string, error) {
 		return "", fmt.Errorf("unsupported Ubuntu version %q (supported: %s)", version, strings.Join(supported, ", "))
 	}
 
+	checksum, err := normalizeChecksum(version, release.Checksum)
+	if err != nil {
+		return "", err
+	}
+
 	// Check if already cached
 	filename := filepath.Base(release.URL)
 	localPath := filepath.Join(m.cacheDir, filename)
 
 	if _, err := os.Stat(localPath); err == nil {
-		// File exists in cache
-		if release.Checksum != "" {
-			// Verify checksum
-			if err := m.verifyChecksum(localPath, release.Checksum); err != nil {
-				// Corrupted - re-download
-				_ = os.Remove(localPath)
-			} else {
-				return localPath, nil // Valid cached file
+		// A cached file is used only if it matches the pinned checksum.
+		if err := m.verifyChecksum(localPath, checksum); err != nil {
+			fmt.Printf("⚠️  Cached ISO %s failed verification (%v); discarding and re-downloading\n", filename, err)
+			if rmErr := os.Remove(localPath); rmErr != nil {
+				return "", fmt.Errorf("cached ISO failed verification and could not be removed: %w", rmErr)
 			}
 		} else {
-			return localPath, nil // No checksum, assume valid
+			return localPath, nil // Verified cached file
 		}
 	}
 
 	// Download ISO
 	if err := m.downloadFile(release.URL, localPath); err != nil {
+		_ = os.Remove(localPath)
 		return "", fmt.Errorf("download failed: %w", err)
 	}
 
-	// Verify checksum if provided
-	if release.Checksum != "" {
-		if err := m.verifyChecksum(localPath, release.Checksum); err != nil {
-			_ = os.Remove(localPath)
-			return "", fmt.Errorf("checksum verification failed: %w", err)
-		}
+	if err := m.verifyChecksum(localPath, checksum); err != nil {
+		_ = os.Remove(localPath)
+		return "", fmt.Errorf("checksum verification failed: %w", err)
 	}
 
 	return localPath, nil

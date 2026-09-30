@@ -1,6 +1,8 @@
 package configs
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -89,7 +91,7 @@ func TestUbuntuReleasesLoaded(t *testing.T) {
 		t.Fatal("ubuntu-releases.yaml loaded no releases")
 	}
 
-	for _, version := range []string{"24.04", "22.04"} {
+	for _, version := range []string{"26.04", "24.04", "22.04"} {
 		t.Run("Ubuntu "+version, func(t *testing.T) {
 			r, ok := UbuntuReleases.Releases[version]
 			if !ok {
@@ -99,6 +101,21 @@ func TestUbuntuReleasesLoaded(t *testing.T) {
 				t.Errorf("Ubuntu %s has no download URL", version)
 			}
 		})
+	}
+}
+
+// Every shipped release must carry a SHA256 checksum: DownloadUbuntu refuses
+// a release without one, so an empty value here would make that version
+// unusable rather than silently unverified.
+func TestUbuntuReleasesAllHaveSHA256(t *testing.T) {
+	sha256Hex := regexp.MustCompile(`^[0-9a-f]{64}$`)
+	for version, r := range UbuntuReleases.Releases {
+		if !sha256Hex.MatchString(r.Checksum) {
+			t.Errorf("Ubuntu %s checksum %q is not a lowercase SHA256 hex digest", version, r.Checksum)
+		}
+		if !strings.HasPrefix(r.URL, "https://") {
+			t.Errorf("Ubuntu %s URL %q is not https", version, r.URL)
+		}
 	}
 }
 

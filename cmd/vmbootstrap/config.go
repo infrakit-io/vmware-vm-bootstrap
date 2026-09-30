@@ -1138,6 +1138,7 @@ func buildUbuntuOptions() []string {
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(vers)))
 	names := map[string]string{
+		"26.04": "26.04 LTS (Resolute Raccoon)",
 		"24.04": "24.04 LTS (Noble)",
 		"22.04": "22.04 LTS (Jammy)",
 		"20.04": "20.04 LTS (Focal)",
