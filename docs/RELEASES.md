@@ -8,6 +8,19 @@ Highlights:
 Notes:
 - TBD
 
+## v0.3.4 (2026-09-30)
+
+Highlights:
+- Ubuntu 26.04 LTS (Resolute Raccoon) support: `"26.04"` → `ubuntu-26.04.1-live-server-amd64.iso`, labelled in the config wizard.
+- ISO checksums are now mandatory and enforced. Every release in `configs/ubuntu-releases.yaml` carries the SHA256 from its GPG-verified `SHA256SUMS` (signing key fingerprint `843938DF228D22F7B3742BC0D94AA3F0EFE21092`). A release with an empty or malformed checksum is refused before download, a cached ISO that does not match is discarded and re-downloaded, and a downloaded ISO that does not match is deleted and the run fails.
+- Ubuntu 24.04 moves to the 24.04.5 point release.
+- Go toolchain 1.26.8 (stdlib fixes GO-2026-6218, GO-2026-6090, GO-2026-5972, GO-2026-5026 reported by govulncheck against 1.26.5).
+
+Notes:
+- Breaking for anyone who relied on an empty `checksum` to skip verification: there is no opt-out; add the checksum instead.
+- The generated autoinstall was validated against the Subiquity 26.04 autoinstall schema, cloud-init 26.1, netplan and sudo-rs on Ubuntu 26.04; the 26.04.1 ISO boot layout matches 24.04 (GRUB rewrite pinned by a fixture test). Not yet run end-to-end on vCenter — see `docs/UBUNTU_SUPPORT.md`.
+- Also first release to include the changes merged since v0.3.3: VM hardware (CPU/memory/OS disk/data disk) applied after Talos OVA deployment, `CONFIG_REPO_ROOT` honoured by `checkRequiredFiles`, `golang.org/x/crypto` v0.52.0 (GO-2026-5018), wizard selector refactor and go-task migration. The Talos OVA tests were updated for the hardware reconfiguration step (CI had been red on master since that change).
+
 ## v0.2.3 (2026-03-01)
 
 Highlights:

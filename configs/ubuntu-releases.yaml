@@ -1,16 +1,40 @@
-# Ubuntu Server ISO download information
-# Update URL and checksum when new Ubuntu LTS point releases are published.
-# Checksum: SHA256 from https://releases.ubuntu.com/<version>/SHA256SUMS
+# Ubuntu Server ISO download information.
+# Update URL and checksum together when a new Ubuntu LTS point release is published.
+#
+# Every release MUST carry a checksum: DownloadUbuntu refuses a release whose
+# checksum is empty or malformed, discards a cached ISO that does not match, and
+# deletes + refuses a freshly downloaded ISO that does not match.
+#
+# How the checksums below were obtained and verified (2026-09-30):
+#   1. SHA256SUMS and SHA256SUMS.gpg downloaded from
+#      https://releases.ubuntu.com/<codename>/ for resolute, noble, jammy, focal.
+#   2. The "Ubuntu CD Image Automatic Signing Key (2012)" fetched from
+#      keyserver.ubuntu.com BY FULL FINGERPRINT
+#        843938DF228D22F7B3742BC0D94AA3F0EFE21092
+#      (the fingerprint published at https://ubuntu.com/tutorials/how-to-verify-ubuntu).
+#   3. `gpg --verify SHA256SUMS.gpg SHA256SUMS` in a throwaway container:
+#      "Good signature" with VALIDSIG 843938DF228D22F7B3742BC0D94AA3F0EFE21092
+#      for all four files; a one-byte-tampered copy returned BAD signature
+#      (negative control).
+#   4. The *-live-server-amd64.iso line copied from each verified SHA256SUMS.
+#      For 26.04.1 the full ISO was also downloaded and hashed: it matched.
+#
+# releases.ubuntu.com may drop superseded point releases; such an ISO then lives
+# under https://old-releases.ubuntu.com/releases/<version>/ with the same checksum.
 
 releases:
+  "26.04":
+    url: https://releases.ubuntu.com/resolute/ubuntu-26.04.1-live-server-amd64.iso
+    checksum: cc8a95cde20f6ced61a322420de00f10cc3c90ced545daa46cb9c1a117f1d927
+
   "24.04":
-    url: https://releases.ubuntu.com/noble/ubuntu-24.04.4-live-server-amd64.iso
-    checksum: ""  # Set to SHA256 hash to enable verification
+    url: https://releases.ubuntu.com/noble/ubuntu-24.04.5-live-server-amd64.iso
+    checksum: 97f3d7ffb032c3eb3b23d2c8be9cc76e60c2c1f2c0146ba5ba9fe01cafae0fd8
 
   "22.04":
     url: https://releases.ubuntu.com/jammy/ubuntu-22.04.5-live-server-amd64.iso
-    checksum: ""  # Set to SHA256 hash to enable verification
+    checksum: 9bc6028870aef3f74f4e16b900008179e78b130e6b0b9a140635434a46aa98b0
 
   "20.04":
     url: https://releases.ubuntu.com/focal/ubuntu-20.04.6-live-server-amd64.iso
-    checksum: ""  # Set to SHA256 hash to enable verification
+    checksum: b8f31413336b9393ad5d8ef0282717b2ab19f007df2e9ed5196c13d8f9153c8b

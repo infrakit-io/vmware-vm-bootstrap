@@ -149,7 +149,12 @@ fi
 if [[ "${1:-}" == "library.deploy" ]]; then
   exit 0
 fi
+if [[ "${1:-}" == "vm.change" || "${1:-}" == "vm.disk.change" || "${1:-}" == "vm.disk.create" ]]; then
+  if [[ -n "${GOVC_FAKE_CALLS:-}" ]]; then echo "$*" >> "${GOVC_FAKE_CALLS}"; fi
+  exit 0
+fi
 if [[ "${1:-}" == "vm.power" ]]; then
+  if [[ -n "${GOVC_FAKE_CALLS:-}" ]]; then echo "$*" >> "${GOVC_FAKE_CALLS}"; fi
   echo "power on failed in fake govc" >&2
   exit 1
 fi
@@ -157,11 +162,28 @@ echo "unexpected govc call: $*" >&2
 exit 1
 `
 	withFakeGovc(t, script)
+	callsFile := filepath.Join(t.TempDir(), "govc-calls")
+	t.Setenv("GOVC_FAKE_CALLS", callsFile)
 
 	cfg := validTalosOVAConfig()
 	_, err := CreateTalosNodeFromOVA(context.Background(), cfg, nil)
 	if err == nil || !strings.Contains(err.Error(), "failed to power on Talos VM") {
 		t.Fatalf("expected power-on failure, got: %v", err)
+	}
+
+	// Hardware from config is applied to the deployed OVA before power-on.
+	raw, readErr := os.ReadFile(callsFile)
+	if readErr != nil {
+		t.Fatalf("read govc call log: %v", readErr)
+	}
+	want := []string{
+		"vm.change -vm talos-vm-01 -c 2 -m 4096",
+		"vm.disk.change -vm talos-vm-01 -size 20G",
+		"vm.power -on talos-vm-01",
+	}
+	got := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("govc calls after deploy = %q, want %q", got, want)
 	}
 }
 
@@ -196,7 +218,12 @@ fi
 if [[ "${1:-}" == "library.import" ]]; then
   exit 0
 fi
+if [[ "${1:-}" == "vm.change" || "${1:-}" == "vm.disk.change" || "${1:-}" == "vm.disk.create" ]]; then
+  if [[ -n "${GOVC_FAKE_CALLS:-}" ]]; then echo "$*" >> "${GOVC_FAKE_CALLS}"; fi
+  exit 0
+fi
 if [[ "${1:-}" == "vm.power" ]]; then
+  if [[ -n "${GOVC_FAKE_CALLS:-}" ]]; then echo "$*" >> "${GOVC_FAKE_CALLS}"; fi
   echo "power on failed in fake govc" >&2
   exit 1
 fi
@@ -226,7 +253,12 @@ fi
 if [[ "${1:-}" == "library.deploy" ]]; then
   exit 0
 fi
+if [[ "${1:-}" == "vm.change" || "${1:-}" == "vm.disk.change" || "${1:-}" == "vm.disk.create" ]]; then
+  if [[ -n "${GOVC_FAKE_CALLS:-}" ]]; then echo "$*" >> "${GOVC_FAKE_CALLS}"; fi
+  exit 0
+fi
 if [[ "${1:-}" == "vm.power" ]]; then
+  if [[ -n "${GOVC_FAKE_CALLS:-}" ]]; then echo "$*" >> "${GOVC_FAKE_CALLS}"; fi
   exit 0
 fi
 echo "unexpected govc call: $*" >&2

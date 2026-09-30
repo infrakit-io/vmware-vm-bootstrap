@@ -13,7 +13,7 @@ RED="\033[31m"
 RESET="\033[0m"
 
 # --- Versions ---
-GO_VERSION="1.26.5"
+GO_VERSION="1.26.8"
 GOLANGCI_LINT_VERSION="latest"
 GOVC_VERSION="latest"
 SOPS_VERSION="latest"

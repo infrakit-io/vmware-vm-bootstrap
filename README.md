@@ -210,7 +210,7 @@ Note: The library API consumes an in-memory `bootstrap.VMConfig` and has no SOPS
 Library:
 - Go 1.26+
 - VMware vCenter 7.0+
-- Ubuntu 22.04 or 24.04 Server ISO
+- Ubuntu 22.04, 24.04 or 26.04 Server ISO (downloaded automatically and verified against the SHA256 pinned in `configs/ubuntu-releases.yaml`)
 
 CLI (in addition to library requirements):
 - `govc` (vSphere CLI)
