@@ -97,29 +97,17 @@ func buildDNS(primary, secondary string) []string {
 	return []string{primary}
 }
 
-// bootstrapVM decrypts vmConfigPath, merges with vcenter config, and runs bootstrap.
-func bootstrapVM(vmConfigPath string, resultPath string) error {
-	fmt.Printf("\033[1mBootstrap VM\033[0m — %s\n", vmConfigPath)
-	fmt.Println(strings.Repeat("─", 50))
-	fmt.Println()
+// builtVM is the resolved bootstrap input derived from vm.*.sops.yaml and the vCenter config.
+type builtVM struct {
+	cfg        *bootstrap.VMConfig
+	profile    string
+	sshKey     string
+	resultPath string
+}
 
-	// Load vCenter config
-	vcCfg, err := loadVCenterConfig(vcenterConfigFile)
-	if err != nil {
-		return fmt.Errorf("failed to load vCenter config: %w", err)
-	}
-
-	// Decrypt VM config
-	vmOut, err := sopsDecrypt(vmConfigPath)
-	if err != nil {
-		return err
-	}
-
-	var vmFile vmFileConfig
-	if err := yaml.Unmarshal(vmOut, &vmFile); err != nil {
-		return fmt.Errorf("failed to parse VM config: %w", err)
-	}
-
+// buildVMConfig maps the decrypted VM file + vCenter config to a bootstrap.VMConfig.
+// Shared by `run` (bootstrapVM) and `create`.
+func buildVMConfig(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, resultPath string) (*builtVM, error) {
 	v := vmFile.VM
 	profile := strings.TrimSpace(v.Profile)
 	if profile == "" {
@@ -135,13 +123,13 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 		if v.SSHKeyPath != "" {
 			data, err := os.ReadFile(v.SSHKeyPath)
 			if err != nil {
-				return fmt.Errorf("failed to read SSH key %s: %w", v.SSHKeyPath, err)
+				return nil, fmt.Errorf("failed to read SSH key %s: %w", v.SSHKeyPath, err)
 			}
 			sshKey = strings.TrimSpace(string(data))
 		} else if v.SSHKey != "" {
 			sshKey = v.SSHKey
 		} else {
-			return fmt.Errorf("either vm.ssh_key or vm.ssh_key_path is required for ubuntu profile")
+			return nil, fmt.Errorf("either vm.ssh_key or vm.ssh_key_path is required for ubuntu profile")
 		}
 	}
 
@@ -185,6 +173,49 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 	applyVMExtras(cfg, v.DataDiskDatastore, v.CPUHotAdd, v.MemoryHotAdd, v.ExtraNICs, v.Tags)
 	cfg.CleanupOnError = v.CleanupOnError // opt-in: destroys the VM on failure
 
+	if v.DataDiskSizeGB > 0 {
+		size := v.DataDiskSizeGB
+		cfg.DataDiskSizeGB = &size
+		cfg.DataDiskMountPath = v.DataDiskMountPath
+	}
+
+	if v.SwapSizeGB > 0 {
+		size := v.SwapSizeGB
+		cfg.SwapSizeGB = &size
+	}
+	return &builtVM{cfg: cfg, profile: profile, sshKey: sshKey, resultPath: resultPath}, nil
+}
+
+// bootstrapVM decrypts vmConfigPath, merges with vcenter config, and runs bootstrap.
+func bootstrapVM(vmConfigPath string, resultPath string) error {
+	fmt.Printf("\033[1mBootstrap VM\033[0m — %s\n", vmConfigPath)
+	fmt.Println(strings.Repeat("─", 50))
+	fmt.Println()
+
+	// Load vCenter config
+	vcCfg, err := loadVCenterConfig(vcenterConfigFile)
+	if err != nil {
+		return fmt.Errorf("failed to load vCenter config: %w", err)
+	}
+
+	// Decrypt VM config
+	vmOut, err := sopsDecrypt(vmConfigPath)
+	if err != nil {
+		return err
+	}
+
+	var vmFile vmFileConfig
+	if err := yaml.Unmarshal(vmOut, &vmFile); err != nil {
+		return fmt.Errorf("failed to parse VM config: %w", err)
+	}
+
+	built, err := buildVMConfig(vcCfg, &vmFile, resultPath)
+	if err != nil {
+		return err
+	}
+	v := vmFile.VM
+	cfg, profile, sshKey, resultPath := built.cfg, built.profile, built.sshKey, built.resultPath
+
 	// If VM already exists, warn and offer options.
 	if exists, err := vmExists(cfg); err == nil && exists {
 		keyPath, cleanupKey, keyErr := prepareSSHKeyPath(v.SSHKeyPath, sshKey)
@@ -223,17 +254,6 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 		if err := cleanupVM(cfg, cfg.Name); err != nil {
 			return err
 		}
-	}
-
-	if v.DataDiskSizeGB > 0 {
-		size := v.DataDiskSizeGB
-		cfg.DataDiskSizeGB = &size
-		cfg.DataDiskMountPath = v.DataDiskMountPath
-	}
-
-	if v.SwapSizeGB > 0 {
-		size := v.SwapSizeGB
-		cfg.SwapSizeGB = &size
 	}
 
 	timeoutMinutes := v.TimeoutMinutes
