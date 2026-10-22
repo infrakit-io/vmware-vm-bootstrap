@@ -28,6 +28,14 @@ autoinstall:
             {{- range .DNS }}
             - {{ . }}
             {{- end }}
+      {{- range $i, $nic := .ExtraNICs }}
+      extra{{ $i }}:
+        match:
+          macaddress: "{{ $nic.MACAddress }}"
+        dhcp4: false
+        addresses:
+          - {{ $nic.IPAddress }}/{{ $nic.CIDR }}
+      {{- end }}
 
   early-commands:
     - echo "nameserver {{ index .DNS 0 }}" > /etc/resolv.conf

@@ -106,7 +106,7 @@ func wireSuccessfulMocks(vc *vcmocks.ClientInterface, creator *vmmocks.CreatorIn
 	creator.On("CreateSpec", mock.Anything).Return(spec)
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, spec).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
@@ -274,7 +274,7 @@ func TestBootstrap_EnsureSCSIControllerFails(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), errors.New("scsi fail"))
-	creator.On("Delete", vm).Return(nil)
+	creator.On("PowerOff", vm).Return(nil) // failure path keeps the VM, powered off
 
 	isoMgr.On("DeleteFromDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
@@ -302,10 +302,10 @@ func TestBootstrap_UploadUbuntuFails(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
-	creator.On("Delete", vm).Return(nil)
+	creator.On("PowerOff", vm).Return(nil) // failure path keeps the VM, powered off
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
 	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
@@ -338,10 +338,10 @@ func TestBootstrap_MountISOsFails(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
-	creator.On("Delete", vm).Return(nil)
+	creator.On("PowerOff", vm).Return(nil) // failure path keeps the VM, powered off
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
 	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
@@ -375,11 +375,11 @@ func TestBootstrap_PowerOnFails(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(errors.New("power on failed"))
-	creator.On("Delete", vm).Return(nil)
+	creator.On("PowerOff", vm).Return(nil) // failure path keeps the VM, powered off
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
 	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
@@ -396,7 +396,7 @@ func TestBootstrap_PowerOnFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to power on VM")
 }
 
-func TestBootstrap_ISODownloadFails_cleansUpVM(t *testing.T) {
+func TestBootstrap_ISODownloadFails_keepsVMPoweredOff(t *testing.T) {
 	vc := new(vcmocks.ClientInterface)
 	creator := new(vmmocks.CreatorInterface)
 	isoMgr := new(isomocks.ManagerInterface)
@@ -412,10 +412,10 @@ func TestBootstrap_ISODownloadFails_cleansUpVM(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
-	creator.On("Delete", vm).Return(nil) // VM cleanup on failure
+	creator.On("PowerOff", vm).Return(nil)
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
 	isoMgr.On("DeleteFromDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -425,7 +425,49 @@ func TestBootstrap_ISODownloadFails_cleansUpVM(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to download Ubuntu ISO")
-	creator.AssertCalled(t, "Delete", vm) // VM was cleaned up
+	creator.AssertCalled(t, "PowerOff", vm)  // VM stopped...
+	creator.AssertNotCalled(t, "Delete", vm) // ...but never destroyed by default
+}
+
+func TestBootstrap_ISODownloadFails_CleanupOnErrorDeletesVM(t *testing.T) {
+	vc := new(vcmocks.ClientInterface)
+	creator := new(vmmocks.CreatorInterface)
+	isoMgr := new(isomocks.ManagerInterface)
+	wireSuccessfulMocks(vc, creator, isoMgr)
+	isoMgr.ExpectedCalls = nil
+	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
+
+	cfg := minimalConfig()
+	cfg.CleanupOnError = true
+	b := testBootstrapper(vc, creator, isoMgr)
+	_, err := b.run(context.Background(), cfg, slog.Default())
+
+	require.Error(t, err)
+	creator.AssertCalled(t, "Delete", fakeVM())
+	creator.AssertNotCalled(t, "PowerOff", mock.Anything)
+}
+
+func TestBootstrap_FailureKeepsVMAndRemovesNoCloudISO(t *testing.T) {
+	vc := new(vcmocks.ClientInterface)
+	creator := new(vmmocks.CreatorInterface)
+	isoMgr := new(isomocks.ManagerInterface)
+	wireSuccessfulMocks(vc, creator, isoMgr)
+	isoMgr.ExpectedCalls = nil
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
+	isoMgr.On("CreateNoCloudISO", mock.Anything, mock.Anything, mock.Anything, "test-vm").Return("/tmp/nocloud.iso", nil)
+	isoMgr.On("UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	isoMgr.On("UploadAlways", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	isoMgr.On("MountISOs", mock.Anything, mock.Anything, mock.Anything).Return(errors.New("mount failed"))
+	isoMgr.On("DeleteFromDatastore", "SSD01", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	b := testBootstrapper(vc, creator, isoMgr)
+	_, err := b.run(context.Background(), minimalConfig(), slog.Default())
+
+	require.Error(t, err)
+	creator.AssertNotCalled(t, "Delete", mock.Anything)
+	creator.AssertCalled(t, "PowerOff", fakeVM())
+	isoMgr.AssertCalled(t, "DeleteFromDatastore", "SSD01", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestBootstrap_SSHVerificationFails(t *testing.T) {
@@ -480,10 +522,10 @@ func TestBootstrap_InvalidNetmask(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
-	creator.On("Delete", vm).Return(nil)
+	creator.On("PowerOff", vm).Return(nil) // failure path keeps the VM, powered off
 	isoMgr.On("DeleteFromDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	cfg := minimalConfig()
@@ -545,8 +587,8 @@ func TestBootstrap_WithDataDisk(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(spec)
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, spec).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)  // OS disk
-	creator.On("AddDisk", vm, mock.Anything, int64(100), int32(0)).Return(nil) // data disk
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)  // OS disk
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(100), int32(0)).Return(nil) // data disk
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
@@ -599,7 +641,7 @@ func TestBootstrap_PasswordHashPrecedence(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(spec)
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, spec).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
@@ -669,7 +711,7 @@ func TestBootstrap_PasswordIsHashed(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(spec)
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, spec).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
@@ -722,7 +764,7 @@ func TestBootstrap_NoPasswordKeyOnly(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(spec)
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, spec).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOn", vm).Return(nil)
@@ -768,10 +810,10 @@ func TestBootstrap_UploadNoCloudFails(t *testing.T) {
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(vm, nil)
 	creator.On("EnsureSCSIController", vm).Return(int32(0), nil)
-	creator.On("AddDisk", vm, mock.Anything, int64(20), int32(0)).Return(nil)
+	creator.On("AddDisk", vm, mock.Anything, mock.Anything, int64(20), int32(0)).Return(nil)
 	creator.On("AddNetworkAdapter", vm, mock.Anything).Return(nil)
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
-	creator.On("Delete", vm).Return(nil)
+	creator.On("PowerOff", vm).Return(nil) // failure path keeps the VM, powered off
 
 	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
 	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)

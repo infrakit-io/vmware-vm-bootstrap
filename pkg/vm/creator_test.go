@@ -114,3 +114,23 @@ func TestCreateSpec_defaultFirmwareFromConfig(t *testing.T) {
 		t.Errorf("Default BIOS firmware should not set spec.Firmware, got %q", spec.Firmware)
 	}
 }
+
+func TestCreateSpec_hotAddDefaultNilUnchanged(t *testing.T) {
+	spec := NewCreator(context.Background()).CreateSpec(&Config{Name: "vm", Datastore: "ds"})
+	if spec.CpuHotAddEnabled != nil || spec.MemoryHotAddEnabled != nil {
+		t.Errorf("hot-add must stay nil by default, got cpu=%v mem=%v", spec.CpuHotAddEnabled, spec.MemoryHotAddEnabled)
+	}
+}
+
+func TestCreateSpec_hotAddSet(t *testing.T) {
+	on, off := true, false
+	spec := NewCreator(context.Background()).CreateSpec(&Config{
+		Name: "vm", Datastore: "ds", CPUHotAdd: &on, MemoryHotAdd: &off,
+	})
+	if spec.CpuHotAddEnabled == nil || !*spec.CpuHotAddEnabled {
+		t.Errorf("CpuHotAddEnabled = %v, want true", spec.CpuHotAddEnabled)
+	}
+	if spec.MemoryHotAddEnabled == nil || *spec.MemoryHotAddEnabled {
+		t.Errorf("MemoryHotAddEnabled = %v, want false", spec.MemoryHotAddEnabled)
+	}
+}

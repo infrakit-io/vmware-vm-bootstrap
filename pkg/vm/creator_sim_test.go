@@ -3,6 +3,7 @@ package vm
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -124,7 +125,7 @@ func TestEnsureSCSIController_AddDisk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotZero(t, key)
 
-	require.NoError(t, creator.AddDisk(vm, datastore, 1, key))
+	require.NoError(t, creator.AddDisk(vm, datastore, datastore.Name(), 1, key))
 
 	devices, err := vm.Device(env.ctx)
 	require.NoError(t, err)
@@ -203,4 +204,97 @@ func TestPowerOnPowerOffDelete(t *testing.T) {
 	require.Equal(t, types.VirtualMachinePowerStatePoweredOff, state)
 
 	require.NoError(t, creator.Delete(vm))
+}
+
+func TestAddExtraNetworkAdapter_AfterMACStartConnected(t *testing.T) {
+	env, cleanup := newSimEnv(t)
+	defer cleanup()
+
+	creator, vm, _ := createTestVM(t, env, "vm-extra-nic")
+	_, _, _, network := env.defaultObjects(t)
+
+	require.NoError(t, creator.AddNetworkAdapter(vm, network))
+	_, err := creator.SetMACAddress(vm, "00:50:56:aa:bb:cc")
+	require.NoError(t, err)
+	mac1, err := creator.AddExtraNetworkAdapter(vm, network, false, false)
+	require.NoError(t, err)
+	mac2, err := creator.AddExtraNetworkAdapter(vm, network, true, true)
+	require.NoError(t, err)
+	require.NotEmpty(t, mac1)
+	require.NotEmpty(t, mac2)
+	require.NotEqual(t, mac1, mac2, "each call returns the MAC of the NIC it just added")
+
+	devices, err := vm.Device(env.ctx)
+	require.NoError(t, err)
+	nics := devices.SelectByType((*types.VirtualEthernetCard)(nil))
+	require.Len(t, nics, 3)
+	primary := nics[0].(types.BaseVirtualEthernetCard).GetVirtualEthernetCard()
+	require.Equal(t, "00:50:56:aa:bb:cc", primary.MacAddress, "primary keeps the static MAC")
+	require.True(t, primary.Connectable.StartConnected, "primary behaviour unchanged")
+	extra1 := nics[1].(types.BaseVirtualEthernetCard).GetVirtualEthernetCard()
+	extra2 := nics[2].(types.BaseVirtualEthernetCard).GetVirtualEthernetCard()
+	require.False(t, extra1.Connectable.StartConnected)
+	require.True(t, extra2.Connectable.StartConnected)
+	require.False(t, extra1.Connectable.AllowGuestControl, "default: guest cannot connect a disconnected NIC")
+	require.True(t, extra2.Connectable.AllowGuestControl, "explicit opt-in")
+	require.Equal(t, mac1, strings.ToLower(extra1.MacAddress))
+	require.Equal(t, mac2, strings.ToLower(extra2.MacAddress))
+}
+
+func TestAddExtraNetworkAdapter_Error(t *testing.T) {
+	env, cleanup := newSimEnv(t)
+	defer cleanup()
+
+	creator, vm, _ := createTestVM(t, env, "vm-extra-nic-err")
+	_, err := creator.AddExtraNetworkAdapter(vm, failingNetwork{}, true, false)
+	require.Error(t, err)
+}
+
+func TestAddDisk_BackingFileNameIsDatastoreOnlyPath(t *testing.T) {
+	env, cleanup := newSimEnv(t)
+	defer cleanup()
+
+	creator, vm, datastore := createTestVM(t, env, "vm-disk-ds")
+	key, err := creator.EnsureSCSIController(vm)
+	require.NoError(t, err)
+	require.NoError(t, creator.AddDisk(vm, datastore, datastore.Name(), 1, key))
+
+	devices, err := vm.Device(env.ctx)
+	require.NoError(t, err)
+	disks := devices.SelectByType((*types.VirtualDisk)(nil))
+	require.Len(t, disks, 1)
+	backing := disks[0].(*types.VirtualDisk).Backing.(*types.VirtualDiskFlatVer2BackingInfo)
+	require.True(t, strings.HasPrefix(backing.FileName, "["+datastore.Name()+"]"), "FileName = %q", backing.FileName)
+	require.True(t, *backing.ThinProvisioned)
+}
+
+func TestAddDisk_EmptyDatastoreNameKeepsOriginalBacking(t *testing.T) {
+	env, cleanup := newSimEnv(t)
+	defer cleanup()
+
+	creator, vm, datastore := createTestVM(t, env, "vm-disk-os")
+	key, err := creator.EnsureSCSIController(vm)
+	require.NoError(t, err)
+	require.NoError(t, creator.AddDisk(vm, datastore, "", 1, key))
+
+	devices, err := vm.Device(env.ctx)
+	require.NoError(t, err)
+	disks := devices.SelectByType((*types.VirtualDisk)(nil))
+	require.Len(t, disks, 1)
+	backing := disks[0].(*types.VirtualDisk).Backing.(*types.VirtualDiskFlatVer2BackingInfo)
+	require.True(t, *backing.ThinProvisioned)
+	require.NotNil(t, backing.Datastore)
+}
+
+func TestPowerOff_AlreadyPoweredOffIsSuccess(t *testing.T) {
+	env, cleanup := newSimEnv(t)
+	defer cleanup()
+
+	creator, vm, _ := createTestVM(t, env, "vm-already-off")
+	state, err := vm.PowerState(env.ctx)
+	require.NoError(t, err)
+	require.Equal(t, types.VirtualMachinePowerStatePoweredOff, state)
+
+	require.NoError(t, creator.PowerOff(vm)) // must not fail with InvalidPowerState
+	require.NoError(t, creator.PowerOff(vm)) // idempotent
 }

@@ -26,6 +26,20 @@ var defaultLogger = slog.Default()
 // sshVerifier is used by VM.Verify to allow tests to stub SSH checks.
 var sshVerifier = verifySSHAccess
 
+// powerOffTimeout bounds the failure-path power-off.
+const powerOffTimeout = 2 * time.Minute
+
+// KeptVMError wraps a bootstrap failure after which the VM was intentionally kept
+// (CleanupOnError=false). PoweredOff reports whether the power-off succeeded.
+type KeptVMError struct {
+	Name       string
+	PoweredOff bool
+	Err        error
+}
+
+func (e *KeptVMError) Error() string { return e.Err.Error() }
+func (e *KeptVMError) Unwrap() error { return e.Err }
+
 // bootstrapper holds injectable service factories.
 // Production code uses defaultBootstrapper(); tests inject mocks.
 type bootstrapper struct {
@@ -84,7 +98,7 @@ func BootstrapWithLogger(ctx context.Context, cfg *VMConfig, logger *slog.Logger
 }
 
 // run is the internal implementation, testable via injected dependencies.
-func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logger) (*VM, error) {
+func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logger) (result *VM, retErr error) {
 	// STEP 1: Validate and set defaults
 	cfg.SetDefaults()
 	if err := cfg.Validate(); err != nil {
@@ -133,6 +147,16 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		return nil, fmt.Errorf("failed to find datastore: %w", err)
 	}
 
+	// dataDatastore is where the optional data disk is placed (defaults to the VM datastore).
+	dataDatastore, dataDatastoreName := datastore, cfg.Datastore
+	if cfg.DataDiskDatastore != "" && cfg.DataDiskDatastore != cfg.Datastore {
+		dataDatastoreName = cfg.DataDiskDatastore
+		dataDatastore, err = vclient.FindDatastore(cfg.Datacenter, cfg.DataDiskDatastore)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find data disk datastore %q: %w", cfg.DataDiskDatastore, err)
+		}
+	}
+
 	// isoDatastore is where profile boot artifacts are uploaded.
 	// Defaults to the VM datastore when ISODatastore is not configured.
 	isoDatastoreName := cfg.ISODatastore
@@ -147,6 +171,15 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 	network, err := vclient.FindNetwork(cfg.Datacenter, cfg.NetworkName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find network: %w", err)
+	}
+
+	extraNetworks := make([]object.NetworkReference, 0, len(cfg.ExtraNICs))
+	for _, n := range cfg.ExtraNICs {
+		extraNet, err := vclient.FindNetwork(cfg.Datacenter, n.Network)
+		if err != nil {
+			return nil, fmt.Errorf("failed to find extra NIC network %q: %w", n.Network, err)
+		}
+		extraNetworks = append(extraNetworks, extraNet)
 	}
 
 	logger.Info("vCenter objects located",
@@ -170,6 +203,8 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		ResourcePool: cfg.ResourcePool,
 		Datastore:    cfg.Datastore,
 		Firmware:     cfg.Firmware,
+		CPUHotAdd:    cfg.CPUHotAdd,
+		MemoryHotAdd: cfg.MemoryHotAdd,
 	}
 
 	if cfg.DataDiskSizeGB != nil {
@@ -186,24 +221,40 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 	// Initialize ISO manager early (needed in defer cleanup)
 	isoMgr := b.newISOManager(ctx)
 
-	// Cleanup partial VM and uploaded ISOs on failure (idempotency)
+	// On failure: by default the VM is powered off and KEPT (never destroyed without
+	// explicit opt-in via CleanupOnError); our own NoCloud ISO artifact is always removed.
 	var bootstrapSuccess bool
 	var profileResult profile.Result
 	defer func() {
-		if !bootstrapSuccess && !cfg.SkipCleanupOnError {
-			if createdVM != nil {
+		if bootstrapSuccess {
+			return
+		}
+		if createdVM != nil {
+			if cfg.CleanupOnError {
 				logger.Warn("Bootstrap failed - cleaning up partial VM", "name", cfg.Name)
 				if deleteErr := creator.Delete(createdVM); deleteErr != nil {
 					logger.Error("Failed to cleanup partial VM", "error", deleteErr)
 				}
-			}
-			if profileResult.NoCloudUploadPath != "" {
-				if deleteErr := isoMgr.DeleteFromDatastore(isoDatastoreName, profileResult.NoCloudUploadPath,
-					cfg.VCenterHost, cfg.VCenterUsername, cfg.VCenterPassword, cfg.VCenterInsecure); deleteErr != nil {
-					logger.Warn("Failed to cleanup NoCloud ISO from datastore", "error", deleteErr)
+			} else {
+				// Fresh context: ctx may be the very reason bootstrap failed (cancelled/timed out).
+				offCtx, cancel := context.WithTimeout(context.Background(), powerOffTimeout)
+				offErr := b.newVMCreator(offCtx).PowerOff(createdVM)
+				cancel()
+				kept := &KeptVMError{Name: cfg.Name, PoweredOff: offErr == nil, Err: retErr}
+				if offErr != nil {
+					logger.Error("VM kept (power-off FAILED, still running): "+cfg.Name, "error", offErr)
 				} else {
-					logger.Info("NoCloud ISO cleaned up from datastore", "path", profileResult.NoCloudUploadPath)
+					logger.Warn("VM kept (powered off): " + cfg.Name)
 				}
+				retErr = kept
+			}
+		}
+		if profileResult.NoCloudUploadPath != "" {
+			if deleteErr := isoMgr.DeleteFromDatastore(isoDatastoreName, profileResult.NoCloudUploadPath,
+				cfg.VCenterHost, cfg.VCenterUsername, cfg.VCenterPassword, cfg.VCenterInsecure); deleteErr != nil {
+				logger.Warn("Failed to cleanup NoCloud ISO from datastore", "error", deleteErr)
+			} else {
+				logger.Info("NoCloud ISO cleaned up from datastore", "path", profileResult.NoCloudUploadPath)
 			}
 		}
 	}()
@@ -217,16 +268,16 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 	}
 
 	// STEP 7: Add OS disk
-	if err := creator.AddDisk(createdVM, datastore, int64(cfg.DiskSizeGB), scsiKey); err != nil {
+	if err := creator.AddDisk(createdVM, datastore, "", int64(cfg.DiskSizeGB), scsiKey); err != nil {
 		return nil, fmt.Errorf("failed to add OS disk: %w", err)
 	}
 
 	// STEP 8: Add data disk (if specified)
 	if cfg.DataDiskSizeGB != nil {
-		if err := creator.AddDisk(createdVM, datastore, int64(*cfg.DataDiskSizeGB), scsiKey); err != nil {
+		if err := creator.AddDisk(createdVM, dataDatastore, dataDatastoreName, int64(*cfg.DataDiskSizeGB), scsiKey); err != nil {
 			return nil, fmt.Errorf("failed to add data disk: %w", err)
 		}
-		logger.Info("Data disk added", "size_gb", *cfg.DataDiskSizeGB)
+		logger.Info("Data disk added", "size_gb", *cfg.DataDiskSizeGB, "datastore", dataDatastoreName)
 	}
 
 	// STEP 9: Add network adapter
@@ -254,6 +305,18 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		}
 	}
 
+	// STEP 9c: Extra NICs - AFTER the primary NIC and SetMACAddress (which targets the last NIC).
+	// Each NIC's MAC is read back so the guest netplan can match it.
+	extraProfileNICs := make([]profile.ExtraNIC, 0, len(cfg.ExtraNICs))
+	for i, n := range cfg.ExtraNICs {
+		nicMAC, err := creator.AddExtraNetworkAdapter(createdVM, extraNetworks[i], n.Connected, n.AllowGuestControl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add extra NIC %d (%s): %w", i, n.Network, err)
+		}
+		extraProfileNICs = append(extraProfileNICs, profile.ExtraNIC{MACAddress: nicMAC, IPAddress: n.IP, Netmask: n.Netmask})
+		logger.Info("Extra NIC added", "network", n.Network, "ip", n.IP, "connected", n.Connected)
+	}
+
 	logger.Info("VM hardware configuration complete")
 
 	provisioner, err := b.resolveProfile(cfg.Profile)
@@ -275,6 +338,7 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		Netmask:           cfg.Netmask,
 		Gateway:           cfg.Gateway,
 		DNS:               cfg.DNS,
+		ExtraNICs:         extraProfileNICs,
 		DataDiskMountPath: cfg.DataDiskMountPath,
 		SwapSizeGB:        cfg.SwapSizeGB,
 		OSVersion:         cfg.EffectiveOSVersion(),
@@ -318,6 +382,7 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		Netmask:           cfg.Netmask,
 		Gateway:           cfg.Gateway,
 		DNS:               cfg.DNS,
+		ExtraNICs:         extraProfileNICs,
 		DataDiskMountPath: cfg.DataDiskMountPath,
 		SwapSizeGB:        cfg.SwapSizeGB,
 		OSVersion:         cfg.EffectiveOSVersion(),
@@ -346,6 +411,23 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 			return nil, fmt.Errorf("SSH verification failed: %w", err)
 		}
 		logger.Info("SSH access verified")
+	}
+
+	// vSphere tags: idempotent and NON-fatal (a tagging problem must not fail a built VM).
+	if len(cfg.Tags) > 0 {
+		refs := make([]vcenter.TagRef, 0, len(cfg.Tags))
+		for _, t := range cfg.Tags {
+			refs = append(refs, vcenter.TagRef{Category: t.Category, Tag: t.Tag})
+		}
+		warnings, tagErr := vclient.EnsureVMTags(createdVM, refs)
+		for _, w := range warnings {
+			logger.Warn("vSphere tag skipped", "reason", w)
+		}
+		if tagErr != nil {
+			logger.Warn("vSphere tagging failed (VM kept, tags not fully applied)", "error", tagErr)
+		} else {
+			logger.Info("vSphere tags ensured", "count", len(refs)-len(warnings))
+		}
 	}
 
 	// Mark bootstrap as successful (prevents defer cleanup)

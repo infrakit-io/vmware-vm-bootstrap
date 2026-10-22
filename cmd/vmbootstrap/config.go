@@ -18,10 +18,10 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/chzyer/readline"
 	wizard "github.com/infrakit-io/cli-wizard-core"
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
-	"github.com/chzyer/readline"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 )
@@ -38,24 +38,31 @@ type VMWizardOutput struct {
 		DiskSizeGB        int    `yaml:"disk_size_gb"`
 		DataDiskSizeGB    int    `yaml:"data_disk_size_gb,omitempty"`
 		DataDiskMountPath string `yaml:"data_disk_mount_path,omitempty"`
-		SwapSizeGB        *int   `yaml:"swap_size_gb,omitempty"`
-		Username          string `yaml:"username"`
-		SSHKeyPath        string `yaml:"ssh_key_path,omitempty"`
-		SSHKey            string `yaml:"ssh_key,omitempty"`
-		Password          string `yaml:"password,omitempty"`
-		AllowPasswordSSH  bool   `yaml:"allow_password_ssh,omitempty"`
-		SSHPort           int    `yaml:"ssh_port,omitempty"`
-		IPAddress         string `yaml:"ip_address"`
-		Netmask           string `yaml:"netmask"`
-		Gateway           string `yaml:"gateway"`
-		DNS               string `yaml:"dns"`
-		DNS2              string `yaml:"dns2,omitempty"`
-		Datastore         string `yaml:"datastore,omitempty"`
-		NetworkName       string `yaml:"network_name,omitempty"`
-		NetworkInterface  string `yaml:"network_interface,omitempty"`
-		Folder            string `yaml:"folder,omitempty"`
-		ResourcePool      string `yaml:"resource_pool,omitempty"`
-		TimeoutMinutes    int    `yaml:"timeout_minutes"`
+		// Advanced options: edited in the YAML file, preserved (not prompted) by the wizard.
+		DataDiskDatastore string      `yaml:"data_disk_datastore,omitempty"`
+		CleanupOnError    bool        `yaml:"cleanup_on_error,omitempty"`
+		CPUHotAdd         *bool       `yaml:"cpu_hot_add,omitempty"`
+		MemoryHotAdd      *bool       `yaml:"memory_hot_add,omitempty"`
+		ExtraNICs         []vmNICFile `yaml:"extra_nics,omitempty"`
+		Tags              []vmTagFile `yaml:"tags,omitempty"`
+		SwapSizeGB        *int        `yaml:"swap_size_gb,omitempty"`
+		Username          string      `yaml:"username"`
+		SSHKeyPath        string      `yaml:"ssh_key_path,omitempty"`
+		SSHKey            string      `yaml:"ssh_key,omitempty"`
+		Password          string      `yaml:"password,omitempty"`
+		AllowPasswordSSH  bool        `yaml:"allow_password_ssh,omitempty"`
+		SSHPort           int         `yaml:"ssh_port,omitempty"`
+		IPAddress         string      `yaml:"ip_address"`
+		Netmask           string      `yaml:"netmask"`
+		Gateway           string      `yaml:"gateway"`
+		DNS               string      `yaml:"dns"`
+		DNS2              string      `yaml:"dns2,omitempty"`
+		Datastore         string      `yaml:"datastore,omitempty"`
+		NetworkName       string      `yaml:"network_name,omitempty"`
+		NetworkInterface  string      `yaml:"network_interface,omitempty"`
+		Folder            string      `yaml:"folder,omitempty"`
+		ResourcePool      string      `yaml:"resource_pool,omitempty"`
+		TimeoutMinutes    int         `yaml:"timeout_minutes"`
 		Profiles          struct {
 			Ubuntu struct {
 				Version string `yaml:"version,omitempty"`
@@ -747,7 +754,6 @@ func saveAndEncrypt(path string, v interface{}, draftPath string) error {
 	return nil
 }
 
-
 // startDraftInterruptHandler saves plaintext drafts on Ctrl+C and asks whether to keep them.
 func startDraftInterruptHandler(targetPath, draftPath string, dataFn func() ([]byte, bool)) func() {
 	localSigCh := make(chan os.Signal, 1)
@@ -1071,7 +1077,6 @@ func selectResourcePool(pools []vcenter.ResourcePoolInfo, defaultPool, message s
 	choice := sel.Select(opts, defaultOpt, message)
 	return choice
 }
-
 
 // selectISODatastore shows all datastores with ★ for the top HDD candidates
 // (ISOs are written once and rarely accessed, so HDD is the right choice).
@@ -1538,7 +1543,6 @@ func sanitizeConsoleInput(raw string) string {
 	}, raw)
 	return strings.TrimSpace(raw)
 }
-
 
 // ─── Small helpers ────────────────────────────────────────────────────────────
 

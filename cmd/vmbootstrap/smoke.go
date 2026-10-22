@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -69,17 +70,16 @@ func smokeVM(vmConfigPath string, cleanup bool) error {
 		VCenterPort:     vcCfg.VCenter.Port,
 		VCenterInsecure: vcCfg.VCenter.Insecure,
 
-		Name:               v.Name,
-		Profile:            v.Profile,
-		CPUs:               v.CPUs,
-		MemoryMB:           v.MemoryMB,
-		DiskSizeGB:         v.DiskSizeGB,
-		Username:           v.Username,
-		SSHPublicKeys:      []string{sshKey},
-		Password:           v.Password,
-		AllowPasswordSSH:   v.AllowPasswordSSH,
-		SkipSSHVerify:      true,
-		SkipCleanupOnError: true,
+		Name:             v.Name,
+		Profile:          v.Profile,
+		CPUs:             v.CPUs,
+		MemoryMB:         v.MemoryMB,
+		DiskSizeGB:       v.DiskSizeGB,
+		Username:         v.Username,
+		SSHPublicKeys:    []string{sshKey},
+		Password:         v.Password,
+		AllowPasswordSSH: v.AllowPasswordSSH,
+		SkipSSHVerify:    true,
 
 		NetworkName: v.NetworkName,
 		IPAddress:   v.IPAddress,
@@ -101,6 +101,7 @@ func smokeVM(vmConfigPath string, cleanup bool) error {
 	cfg.Profiles.Ubuntu.Version = v.Profiles.Ubuntu.Version
 	cfg.Profiles.Talos.Version = v.Profiles.Talos.Version
 	cfg.Profiles.Talos.SchematicID = v.Profiles.Talos.SchematicID
+	applyVMExtras(cfg, v.DataDiskDatastore, v.CPUHotAdd, v.MemoryHotAdd, v.ExtraNICs, v.Tags)
 
 	if v.DataDiskSizeGB > 0 {
 		size := v.DataDiskSizeGB
@@ -184,8 +185,13 @@ func smokeVM(vmConfigPath string, cleanup bool) error {
 			os.Exit(0)
 		}
 		fmt.Printf("\n\033[31m✗ Bootstrap failed: %v\033[0m\n", err)
-		fmt.Printf("  VM may still be running: %s\n", cfg.Name)
-		fmt.Printf("  Inspect with: \033[36mssh %s@%s\033[0m\n\n", cfg.Username, cfg.IPAddress)
+		var keptErr *bootstrap.KeptVMError
+		if errors.As(err, &keptErr) {
+			fmt.Println(keptVMMessage(keptErr))
+		} else {
+			fmt.Printf("  VM may still exist: %s\n", cfg.Name)
+		}
+		fmt.Printf("  Inspect: \033[36mssh %s@%s\033[0m (only if it is running)\n\n", cfg.Username, cfg.IPAddress)
 		if !cleanup {
 			cleanup = readYesNoDanger("Cleanup (delete VM)?")
 		}

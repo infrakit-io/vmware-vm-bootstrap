@@ -444,3 +444,70 @@ func BenchmarkGenerateNetworkConfig(b *testing.B) {
 		}
 	}
 }
+
+func TestGenerateNetworkConfig_ExtraNICsNoGateway(t *testing.T) {
+	gen, err := NewGenerator()
+	if err != nil {
+		t.Fatalf("NewGenerator() failed: %v", err)
+	}
+	out, err := gen.GenerateNetworkConfig(&NetworkConfigInput{
+		InterfaceName: "ens192",
+		IPAddress:     "192.168.1.10",
+		CIDR:          24,
+		Gateway:       "192.168.1.1",
+		DNS:           []string{"8.8.8.8"},
+		ExtraNICs: []ExtraNIC{
+			{MACAddress: "00:50:56:aa:bb:01", IPAddress: "10.0.0.5", CIDR: 24},
+			{MACAddress: "00:50:56:aa:bb:02", IPAddress: "10.0.1.5", CIDR: 16},
+		},
+	})
+	if err != nil {
+		t.Fatalf("GenerateNetworkConfig() failed: %v", err)
+	}
+	for _, want := range []string{"extra0:", "extra1:", `macaddress: "00:50:56:aa:bb:01"`, "10.0.0.5/24", "10.0.1.5/16"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("network-config missing %q:\n%s", want, out)
+		}
+	}
+	if n := strings.Count(out, "gateway4"); n != 1 {
+		t.Errorf("gateway4 must appear only for the primary NIC, got %d:\n%s", n, out)
+	}
+}
+
+func TestGenerateNetworkConfig_NoExtraNICsUnchanged(t *testing.T) {
+	gen, _ := NewGenerator()
+	out, err := gen.GenerateNetworkConfig(&NetworkConfigInput{
+		InterfaceName: "ens192", IPAddress: "192.168.1.10", CIDR: 24, Gateway: "192.168.1.1", DNS: []string{"8.8.8.8"},
+	})
+	if err != nil {
+		t.Fatalf("GenerateNetworkConfig() failed: %v", err)
+	}
+	if strings.Contains(out, "extra0") || strings.Contains(out, "match:") {
+		t.Errorf("unexpected extra NIC output:\n%s", out)
+	}
+}
+
+func TestGenerateUserData_ExtraNICsNoGateway(t *testing.T) {
+	gen, err := NewGenerator()
+	if err != nil {
+		t.Fatalf("NewGenerator() failed: %v", err)
+	}
+	out, err := gen.GenerateUserData(&UserDataInput{
+		Hostname: "vm", Username: "ubuntu", PasswordHash: "*",
+		SSHPublicKeys: []string{"ssh-ed25519 AAAA test"}, Locale: "en_US.UTF-8", Timezone: "UTC",
+		KeyboardLayout: "us", SwapSize: "2G", SwapSizeGB: 2, UserGroups: "sudo", UserShell: "/bin/bash",
+		IPAddress: "192.168.1.10", CIDR: 24, Gateway: "192.168.1.1", DNS: []string{"8.8.8.8"},
+		ExtraNICs: []ExtraNIC{{MACAddress: "00:50:56:aa:bb:01", IPAddress: "10.0.0.5", CIDR: 24}},
+	})
+	if err != nil {
+		t.Fatalf("GenerateUserData() failed: %v", err)
+	}
+	for _, want := range []string{"extra0:", `macaddress: "00:50:56:aa:bb:01"`, "10.0.0.5/24"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("user-data missing %q", want)
+		}
+	}
+	if n := strings.Count(out, "via: "); n != 1 {
+		t.Errorf("default route must exist only for the primary NIC, got %d", n)
+	}
+}

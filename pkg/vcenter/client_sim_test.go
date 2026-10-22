@@ -20,6 +20,7 @@ func newSimClient(t *testing.T) (*Client, context.Context, func()) {
 
 	require.NoError(t, model.Create())
 	model.Service.TLS = new(tls.Config)
+	model.Service.RegisterEndpoints = true // vapi/simulator (tagging REST)
 	s := model.Service.NewServer()
 
 	ctx := context.Background()

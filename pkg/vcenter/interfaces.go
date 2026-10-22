@@ -18,6 +18,7 @@ type ClientInterface interface {
 	ListFolders(datacenter string) ([]FolderInfo, error)
 	ListResourcePools(datacenter string) ([]ResourcePoolInfo, error)
 	ListVMGuestIPs(datacenter string) ([]VMGuestIPInfo, error)
+	EnsureVMTags(vm *object.VirtualMachine, tags []TagRef) (warnings []string, err error)
 	Disconnect() error
 }
 

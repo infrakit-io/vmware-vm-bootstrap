@@ -44,6 +44,15 @@ func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt
 		return profile.Result{}, fmt.Errorf("invalid netmask: %w", err)
 	}
 
+	extraNICs := make([]cloudinit.ExtraNIC, 0, len(in.ExtraNICs))
+	for _, n := range in.ExtraNICs {
+		nicCIDR, nicErr := utils.NetmaskToCIDR(n.Netmask)
+		if nicErr != nil {
+			return profile.Result{}, fmt.Errorf("invalid netmask for extra NIC %s: %w", n.IPAddress, nicErr)
+		}
+		extraNICs = append(extraNICs, cloudinit.ExtraNIC{MACAddress: n.MACAddress, IPAddress: n.IPAddress, CIDR: nicCIDR})
+	}
+
 	swapSizeGB := configs.Defaults.CloudInit.SwapSizeGB
 	if in.SwapSizeGB != nil {
 		swapSizeGB = *in.SwapSizeGB
@@ -70,6 +79,7 @@ func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt
 		CIDR:              cidr,
 		Gateway:           in.Gateway,
 		DNS:               in.DNS,
+		ExtraNICs:         extraNICs,
 	})
 	if err != nil {
 		return profile.Result{}, fmt.Errorf("failed to generate user-data: %w", err)
@@ -89,6 +99,7 @@ func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt
 		CIDR:          cidr,
 		Gateway:       in.Gateway,
 		DNS:           in.DNS,
+		ExtraNICs:     extraNICs,
 	})
 	if err != nil {
 		return profile.Result{}, fmt.Errorf("failed to generate network-config: %w", err)
@@ -133,12 +144,12 @@ func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt
 	ubuntuMountPath := fmt.Sprintf("[%s] %s", rt.ISODatastoreName, ubuntuUploadPath)
 	nocloudMountPath := fmt.Sprintf("[%s] %s", rt.ISODatastoreName, nocloudUploadPath)
 	if err := rt.ISOManager.MountISOs(rt.CreatedVM, ubuntuMountPath, nocloudMountPath); err != nil {
-		return profile.Result{}, fmt.Errorf("failed to mount ISOs: %w", err)
+		return profile.Result{NoCloudUploadPath: nocloudUploadPath}, fmt.Errorf("failed to mount ISOs: %w", err)
 	}
 	rt.Logger.Info("ISOs mounted to VM")
 
 	if err := rt.Creator.PowerOn(rt.CreatedVM); err != nil {
-		return profile.Result{}, fmt.Errorf("failed to power on VM: %w", err)
+		return profile.Result{NoCloudUploadPath: nocloudUploadPath}, fmt.Errorf("failed to power on VM: %w", err)
 	}
 	rt.Logger.Info("VM powered on - waiting for installation...")
 

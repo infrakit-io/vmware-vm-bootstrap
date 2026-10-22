@@ -11,3 +11,12 @@ ethernets:
         {{- end }}
     dhcp4: false
     dhcp6: false
+{{- range $i, $nic := .ExtraNICs }}
+  extra{{ $i }}:
+    match:
+      macaddress: "{{ $nic.MACAddress }}"
+    addresses:
+      - {{ $nic.IPAddress }}/{{ $nic.CIDR }}
+    dhcp4: false
+    dhcp6: false
+{{- end }}

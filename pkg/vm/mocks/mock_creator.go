@@ -36,14 +36,19 @@ func (m *CreatorInterface) EnsureSCSIController(v *object.VirtualMachine) (int32
 	return args.Get(0).(int32), args.Error(1)
 }
 
-func (m *CreatorInterface) AddDisk(v *object.VirtualMachine, datastore *object.Datastore, sizeGB int64, scsiKey int32) error {
-	args := m.Called(v, datastore, sizeGB, scsiKey)
+func (m *CreatorInterface) AddDisk(v *object.VirtualMachine, datastore *object.Datastore, dsName string, sizeGB int64, scsiKey int32) error {
+	args := m.Called(v, datastore, dsName, sizeGB, scsiKey)
 	return args.Error(0)
 }
 
 func (m *CreatorInterface) AddNetworkAdapter(v *object.VirtualMachine, network object.NetworkReference) error {
 	args := m.Called(v, network)
 	return args.Error(0)
+}
+
+func (m *CreatorInterface) AddExtraNetworkAdapter(v *object.VirtualMachine, network object.NetworkReference, connected, allowGuestControl bool) (string, error) {
+	args := m.Called(v, network, connected, allowGuestControl)
+	return args.String(0), args.Error(1)
 }
 
 func (m *CreatorInterface) SetMACAddress(v *object.VirtualMachine, mac string) (string, error) {

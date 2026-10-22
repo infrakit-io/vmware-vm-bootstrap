@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -16,31 +17,37 @@ import (
 // vmFileConfig is the YAML structure for vm.*.sops.yaml (runtime fields).
 type vmFileConfig struct {
 	VM struct {
-		Name              string `yaml:"name"`
-		Profile           string `yaml:"profile,omitempty"`
-		CPUs              int    `yaml:"cpus"`
-		MemoryMB          int    `yaml:"memory_mb"`
-		DiskSizeGB        int    `yaml:"disk_size_gb"`
-		DataDiskSizeGB    int    `yaml:"data_disk_size_gb"`
-		DataDiskMountPath string `yaml:"data_disk_mount_path"`
-		SwapSizeGB        int    `yaml:"swap_size_gb"`
-		Username          string `yaml:"username"`
-		SSHKeyPath        string `yaml:"ssh_key_path"`
-		SSHKey            string `yaml:"ssh_key"`
-		Password          string `yaml:"password"`
-		SSHPort           int    `yaml:"ssh_port"`
-		AllowPasswordSSH  bool   `yaml:"allow_password_ssh"`
-		IPAddress         string `yaml:"ip_address"`
-		Netmask           string `yaml:"netmask"`
-		Gateway           string `yaml:"gateway"`
-		DNS               string `yaml:"dns"`
-		DNS2              string `yaml:"dns2"`
-		Datastore         string `yaml:"datastore"`
-		NetworkName       string `yaml:"network_name"`
-		NetworkInterface  string `yaml:"network_interface"`
-		Folder            string `yaml:"folder"`
-		ResourcePool      string `yaml:"resource_pool"`
-		TimeoutMinutes    int    `yaml:"timeout_minutes"`
+		Name              string      `yaml:"name"`
+		Profile           string      `yaml:"profile,omitempty"`
+		CPUs              int         `yaml:"cpus"`
+		MemoryMB          int         `yaml:"memory_mb"`
+		DiskSizeGB        int         `yaml:"disk_size_gb"`
+		DataDiskSizeGB    int         `yaml:"data_disk_size_gb"`
+		DataDiskMountPath string      `yaml:"data_disk_mount_path"`
+		DataDiskDatastore string      `yaml:"data_disk_datastore,omitempty"`
+		CleanupOnError    bool        `yaml:"cleanup_on_error,omitempty"`
+		CPUHotAdd         *bool       `yaml:"cpu_hot_add,omitempty"`
+		MemoryHotAdd      *bool       `yaml:"memory_hot_add,omitempty"`
+		ExtraNICs         []vmNICFile `yaml:"extra_nics,omitempty"`
+		Tags              []vmTagFile `yaml:"tags,omitempty"`
+		SwapSizeGB        int         `yaml:"swap_size_gb"`
+		Username          string      `yaml:"username"`
+		SSHKeyPath        string      `yaml:"ssh_key_path"`
+		SSHKey            string      `yaml:"ssh_key"`
+		Password          string      `yaml:"password"`
+		SSHPort           int         `yaml:"ssh_port"`
+		AllowPasswordSSH  bool        `yaml:"allow_password_ssh"`
+		IPAddress         string      `yaml:"ip_address"`
+		Netmask           string      `yaml:"netmask"`
+		Gateway           string      `yaml:"gateway"`
+		DNS               string      `yaml:"dns"`
+		DNS2              string      `yaml:"dns2"`
+		Datastore         string      `yaml:"datastore"`
+		NetworkName       string      `yaml:"network_name"`
+		NetworkInterface  string      `yaml:"network_interface"`
+		Folder            string      `yaml:"folder"`
+		ResourcePool      string      `yaml:"resource_pool"`
+		TimeoutMinutes    int         `yaml:"timeout_minutes"`
 		Profiles          struct {
 			Ubuntu struct {
 				Version string `yaml:"version,omitempty"`
@@ -51,6 +58,36 @@ type vmFileConfig struct {
 			} `yaml:"talos,omitempty"`
 		} `yaml:"profiles,omitempty"`
 	} `yaml:"vm"`
+}
+
+// vmNICFile is an additional static-IP NIC (no gateway) in vm.*.sops.yaml.
+type vmNICFile struct {
+	Network   string `yaml:"network"`
+	IP        string `yaml:"ip"`
+	Netmask   string `yaml:"netmask"`
+	Connected *bool  `yaml:"connected,omitempty"` // default true when omitted
+	// AllowGuestControl lets the guest connect/disconnect the NIC; default false (explicit opt-in).
+	AllowGuestControl *bool `yaml:"allow_guest_control,omitempty"`
+}
+
+// vmTagFile is a vSphere tag (category + tag) in vm.*.sops.yaml.
+type vmTagFile struct {
+	Category string `yaml:"category"`
+	Tag      string `yaml:"tag"`
+}
+
+// applyVMExtras copies the optional hardware/tagging fields of a VM file into cfg.
+func applyVMExtras(cfg *bootstrap.VMConfig, dataDiskDatastore string, cpuHotAdd, memoryHotAdd *bool, nics []vmNICFile, tags []vmTagFile) {
+	cfg.DataDiskDatastore = dataDiskDatastore
+	cfg.CPUHotAdd = cpuHotAdd
+	cfg.MemoryHotAdd = memoryHotAdd
+	for _, n := range nics {
+		connected := n.Connected == nil || *n.Connected
+		cfg.ExtraNICs = append(cfg.ExtraNICs, bootstrap.NIC{Network: n.Network, IP: n.IP, Netmask: n.Netmask, Connected: connected, AllowGuestControl: n.AllowGuestControl != nil && *n.AllowGuestControl})
+	}
+	for _, t := range tags {
+		cfg.Tags = append(cfg.Tags, bootstrap.Tag{Category: t.Category, Tag: t.Tag})
+	}
 }
 
 func buildDNS(primary, secondary string) []string {
@@ -145,6 +182,8 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 	cfg.Profiles.Ubuntu.Version = v.Profiles.Ubuntu.Version
 	cfg.Profiles.Talos.Version = v.Profiles.Talos.Version
 	cfg.Profiles.Talos.SchematicID = v.Profiles.Talos.SchematicID
+	applyVMExtras(cfg, v.DataDiskDatastore, v.CPUHotAdd, v.MemoryHotAdd, v.ExtraNICs, v.Tags)
+	cfg.CleanupOnError = v.CleanupOnError // opt-in: destroys the VM on failure
 
 	// If VM already exists, warn and offer options.
 	if exists, err := vmExists(cfg); err == nil && exists {
@@ -251,6 +290,11 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 			fmt.Println("\nCancelled.")
 			os.Exit(0)
 		}
+		var keptErr *bootstrap.KeptVMError
+		if errors.As(err, &keptErr) {
+			fmt.Println()
+			fmt.Println(keptVMMessage(keptErr))
+		}
 		return fmt.Errorf("bootstrap failed: %w", err)
 	}
 
@@ -352,4 +396,12 @@ func offerVMCleanup(cfg *bootstrap.VMConfig) {
 		return
 	}
 	fmt.Printf("\033[32m✓ VM '%s' deleted.\033[0m\n", cfg.Name)
+}
+
+// keptVMMessage describes the state of a VM that bootstrap kept after a failure.
+func keptVMMessage(e *bootstrap.KeptVMError) string {
+	if e.PoweredOff {
+		return fmt.Sprintf("\033[33m⚠ VM kept (powered off): %s\033[0m", e.Name)
+	}
+	return fmt.Sprintf("\033[31m⚠ VM kept (power-off FAILED, still running): %s\033[0m", e.Name)
 }

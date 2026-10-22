@@ -27,6 +27,9 @@ type VMConfig struct {
 	DiskSizeGB        int    // OS disk size in GB (e.g., 40)
 	DataDiskSizeGB    *int   // Optional data disk size in GB (e.g., 500) - nil = not created
 	DataDiskMountPath string // Mount point for data disk (e.g., "/data") - required if DataDiskSizeGB set
+	DataDiskDatastore string // Optional datastore for the data disk - empty = same as Datastore
+	CPUHotAdd         *bool  // Optional CPU hot-add - nil = vCenter default
+	MemoryHotAdd      *bool  // Optional memory hot-add - nil = vCenter default
 
 	// === Network Configuration ===
 	NetworkName      string   // Network name (e.g., "LAN_Management")
@@ -36,6 +39,8 @@ type VMConfig struct {
 	Netmask          string   // Network mask (e.g., "255.255.255.0")
 	Gateway          string   // Default gateway (e.g., "192.168.1.1")
 	DNS              []string // DNS servers (e.g., ["8.8.8.8", "8.8.4.4"])
+	// Additional NICs added after the primary NIC (ubuntu profile only): static IP, no gateway.
+	ExtraNICs []NIC
 
 	// === VM Placement ===
 	Datacenter   string // Datacenter name (e.g., "DC1")
@@ -61,14 +66,34 @@ type VMConfig struct {
 	AllowPasswordSSH bool
 	// Skip SSH verification during bootstrap (default: false).
 	SkipSSHVerify bool
-	// Keep VM/ISO on bootstrap failure for debugging (default: false).
-	SkipCleanupOnError bool
+	// Destroy the VM on bootstrap failure (default: false = the VM is only powered
+	// off and kept; our own NoCloud ISO artifact is always removed).
+	CleanupOnError bool
 
 	// === Advanced Options ===
 	Timezone   string // System timezone (default: "UTC")
 	Locale     string // System locale (default: "en_US.UTF-8")
 	SwapSizeGB *int   // Swap size in GB (default from configs/defaults.yaml)
 	Firmware   string // Firmware type: "bios" or "efi" (default: "bios")
+	// vSphere tags attached after the VM is created (category/tag created when missing).
+	Tags []Tag
+}
+
+// NIC is an additional network adapter with a static IP and no gateway.
+type NIC struct {
+	Network   string // Network name
+	IP        string // Static IPv4 address
+	Netmask   string // Network mask (e.g., "255.255.255.0")
+	Connected bool   // Connectable.StartConnected
+	// AllowGuestControl lets the guest OS connect/disconnect the NIC (default false:
+	// a NIC deliberately started disconnected stays disconnected).
+	AllowGuestControl bool
+}
+
+// Tag names a vSphere tag by category and tag name.
+type Tag struct {
+	Category string
+	Tag      string
 }
 
 // VMProfiles contains profile-specific settings.
@@ -173,6 +198,33 @@ func (cfg *VMConfig) Validate() error {
 	// Validate network config using utils
 	if err := utils.ValidateNetworkConfig(cfg.IPAddress, cfg.Netmask, cfg.Gateway, cfg.DNS); err != nil {
 		return err
+	}
+	if len(cfg.ExtraNICs) > 0 && profile != "ubuntu" {
+		return fmt.Errorf("ExtraNICs are only supported for the ubuntu profile")
+	}
+	if profile == "talos" {
+		if len(cfg.Tags) > 0 || cfg.CPUHotAdd != nil || cfg.MemoryHotAdd != nil || cfg.DataDiskDatastore != "" {
+			return fmt.Errorf("Tags, CPUHotAdd, MemoryHotAdd and DataDiskDatastore are not supported for the talos profile")
+		}
+	}
+	for i, n := range cfg.ExtraNICs {
+		if n.Network == "" {
+			return fmt.Errorf("ExtraNICs[%d]: Network is required", i)
+		}
+		if err := utils.ValidateIPv4(n.IP); err != nil {
+			return fmt.Errorf("ExtraNICs[%d]: %w", i, err)
+		}
+		if _, err := utils.NetmaskToCIDR(n.Netmask); err != nil {
+			return fmt.Errorf("ExtraNICs[%d]: invalid netmask: %w", i, err)
+		}
+	}
+	for i, t := range cfg.Tags {
+		if strings.TrimSpace(t.Category) == "" || strings.TrimSpace(t.Tag) == "" {
+			return fmt.Errorf("Tags[%d]: Category and Tag are required", i)
+		}
+	}
+	if cfg.DataDiskDatastore != "" && cfg.DataDiskSizeGB == nil {
+		return fmt.Errorf("DataDiskDatastore requires DataDiskSizeGB")
 	}
 	if mac := strings.TrimSpace(cfg.MACAddress); mac != "" && !macAddressRe.MatchString(strings.ToLower(mac)) {
 		return fmt.Errorf("invalid MACAddress format: %q (expected aa:bb:cc:dd:ee:ff)", cfg.MACAddress)

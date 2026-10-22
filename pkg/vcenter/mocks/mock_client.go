@@ -105,3 +105,9 @@ func (m *ClientInterface) Disconnect() error {
 	args := m.Called()
 	return args.Error(0)
 }
+
+func (m *ClientInterface) EnsureVMTags(vm *object.VirtualMachine, tags []vcenter.TagRef) ([]string, error) {
+	args := m.Called(vm, tags)
+	w, _ := args.Get(0).([]string)
+	return w, args.Error(1)
+}

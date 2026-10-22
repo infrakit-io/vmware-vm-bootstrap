@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 - Example configs: `configs/vcenter.example.yaml`, `configs/vm.example.yaml`.
 
 ### Changed
+- BREAKING: `SkipCleanupOnError` replaced by `CleanupOnError` (default false). On failure the VM is now powered off and kept, never destroyed unless `CleanupOnError` / YAML `cleanup_on_error: true` is set; the NoCloud ISO artifact is always removed.
+- Optional `ExtraNICs`, `Tags` (non-fatal), `CPUHotAdd`/`MemoryHotAdd`, `DataDiskDatastore` (YAML: `extra_nics`, `tags`, `cpu_hot_add`, `memory_hot_add`, `data_disk_datastore`); ubuntu profile only.
 - `vcenter.NewClient` now accepts full `https://` URLs with scheme.
 - `VM.Verify` is strict: VMware Tools running + SSH access required.
 - SOPS encryption pipes plaintext to SOPS (no plaintext written to disk).

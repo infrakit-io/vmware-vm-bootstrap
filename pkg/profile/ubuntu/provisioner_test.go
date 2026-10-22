@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	isomocks "github.com/infrakit-io/vmware-vm-bootstrap/pkg/iso/mocks"
@@ -305,5 +306,25 @@ func TestProvisionAndBoot_CDRomWarningNonFatal(t *testing.T) {
 	}
 	if res.NoCloudUploadPath != "ISO/nocloud/nocloud.iso" {
 		t.Fatalf("unexpected nocloud upload path: %s", res.NoCloudUploadPath)
+	}
+}
+
+func TestProvisionAndBoot_InvalidExtraNICNetmask(t *testing.T) {
+	p := New()
+	_, err := p.ProvisionAndBoot(context.Background(), profile.Input{
+		VMName:           "vm1",
+		Username:         "user",
+		PasswordHash:     "$6$hash",
+		NetworkInterface: "eth0",
+		IPAddress:        "192.168.1.10",
+		Netmask:          "255.255.255.0",
+		Gateway:          "192.168.1.1",
+		DNS:              []string{"1.1.1.1"},
+		ExtraNICs:        []profile.ExtraNIC{{MACAddress: "00:50:56:aa:bb:01", IPAddress: "10.0.0.5", Netmask: "bad"}},
+	}, profile.Runtime{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err == nil || !strings.Contains(err.Error(), "extra NIC") {
+		t.Fatalf("expected extra NIC netmask error, got %v", err)
 	}
 }

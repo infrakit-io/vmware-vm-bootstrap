@@ -19,6 +19,7 @@ type Client struct {
 	conn   *govmomi.Client
 	finder *find.Finder
 	ctx    context.Context
+	user   *url.Userinfo // credentials reused for the vSphere Automation (REST) session
 }
 
 // Config holds vCenter connection parameters.
@@ -82,6 +83,7 @@ func NewClient(ctx context.Context, cfg *Config) (*Client, error) {
 		conn:   client,
 		finder: finder,
 		ctx:    ctx,
+		user:   vcURL.User,
 	}, nil
 }
 

@@ -50,6 +50,15 @@ type UserDataInput struct {
 	CIDR      int
 	Gateway   string
 	DNS       []string
+	// Additional NICs (static IP, no gateway), matched by MAC.
+	ExtraNICs []ExtraNIC
+}
+
+// ExtraNIC is an additional static-IP NIC without a gateway.
+type ExtraNIC struct {
+	MACAddress string // e.g., "00:50:56:aa:bb:cc" (matches the NIC in netplan)
+	IPAddress  string // e.g., "10.0.0.5"
+	CIDR       int    // e.g., 24
 }
 
 // MetaDataInput contains data for meta-data generation.
@@ -65,6 +74,7 @@ type NetworkConfigInput struct {
 	CIDR          int      // e.g., 24
 	Gateway       string   // e.g., "192.168.1.1"
 	DNS           []string // e.g., ["8.8.8.8", "8.8.4.4"]
+	ExtraNICs     []ExtraNIC
 }
 
 // NewGenerator creates a new cloud-init generator with embedded templates.

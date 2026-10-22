@@ -24,6 +24,7 @@ type Input struct {
 	Netmask           string
 	Gateway           string
 	DNS               []string
+	ExtraNICs         []ExtraNIC
 	DataDiskMountPath string
 	SwapSizeGB        *int
 	OSVersion         string
@@ -33,6 +34,13 @@ type Input struct {
 	VCenterUsername string
 	VCenterPassword string
 	VCenterInsecure bool
+}
+
+// ExtraNIC is an additional static-IP NIC (no gateway) already attached to the VM.
+type ExtraNIC struct {
+	MACAddress string
+	IPAddress  string
+	Netmask    string
 }
 
 // Runtime provides live VMware/ISO resources for provisioning.
