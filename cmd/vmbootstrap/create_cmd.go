@@ -90,6 +90,7 @@ func runCreate(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, opts createOption
 		return err
 	}
 	cfg := built.cfg
+	cfg.SetDefaults()
 	if err := cfg.Validate(); err != nil {
 		return fmt.Errorf("invalid VM config: %w", err)
 	}
@@ -118,9 +119,15 @@ func runCreate(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, opts createOption
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
 	defer cancel()
+	// Take over Ctrl+C from the global handler (which exits 0) so the bootstrap
+	// failure handler runs: power off, keep the VM, remove the NoCloud ISO.
+	signal.Stop(mainSigCh)
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt)
-	defer signal.Stop(sigCh)
+	defer func() {
+		signal.Stop(sigCh)
+		signal.Notify(mainSigCh, os.Interrupt)
+	}()
 	go func() {
 		select {
 		case <-sigCh:
@@ -131,6 +138,9 @@ func runCreate(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, opts createOption
 
 	vm, err := d.run(ctx, cfg)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			fmt.Fprintln(d.out, "\n\033[33m⚠ Interrupted\033[0m")
+		}
 		var keptErr *bootstrap.KeptVMError
 		if errors.As(err, &keptErr) {
 			fmt.Fprintln(d.out)

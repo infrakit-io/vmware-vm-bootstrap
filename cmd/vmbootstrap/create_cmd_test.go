@@ -6,7 +6,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"net/url"
+	"os"
 	"strconv"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -157,4 +159,27 @@ func TestCreateCmd_FailurePrintsKeptVMOutcome(t *testing.T) {
 	err := runCreate(vc, vmFileFor(t, "bareos-01"), createOptions{Yes: true}, d)
 	require.ErrorContains(t, err, "bootstrap failed")
 	require.Contains(t, out.String(), "VM kept (powered off): bareos-01")
+}
+
+func TestCreateCmd_InterruptCancelsRunAndFails(t *testing.T) {
+	vc, _, cleanup := simCreateEnv(t)
+	defer cleanup()
+	var out bytes.Buffer
+	runs, confirms := 0, 0
+	d := testDeps(&out, &runs, &confirms)
+	started := make(chan struct{})
+	d.run = func(ctx context.Context, cfg *bootstrap.VMConfig) (*bootstrap.VM, error) {
+		close(started)
+		<-ctx.Done() // the bootstrap failure handler runs here in the real code
+		return nil, &bootstrap.KeptVMError{Name: cfg.Name, PoweredOff: true, Err: ctx.Err()}
+	}
+	go func() {
+		<-started
+		_ = syscall.Kill(os.Getpid(), syscall.SIGINT)
+	}()
+	err := runCreate(vc, vmFileFor(t, "bareos-01"), createOptions{Yes: true}, d)
+	require.Error(t, err, "interrupted create exits non-zero")
+	require.ErrorIs(t, err, context.Canceled)
+	require.Contains(t, out.String(), "Interrupted")
+	require.Contains(t, out.String(), "VM kept (powered off)")
 }
