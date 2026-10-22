@@ -464,7 +464,7 @@ func TestGenerateNetworkConfig_ExtraNICsNoGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateNetworkConfig() failed: %v", err)
 	}
-	for _, want := range []string{"extra0:", "extra1:", `macaddress: "00:50:56:aa:bb:01"`, "10.0.0.5/24", "10.0.1.5/16"} {
+	for _, want := range []string{"extra0:", "extra1:", `macaddress: "00:50:56:aa:bb:01"`, "10.0.0.5/24", "10.0.1.5/16", "optional: true"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("network-config missing %q:\n%s", want, out)
 		}
@@ -482,7 +482,7 @@ func TestGenerateNetworkConfig_NoExtraNICsUnchanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateNetworkConfig() failed: %v", err)
 	}
-	if strings.Contains(out, "extra0") || strings.Contains(out, "match:") {
+	if strings.Contains(out, "extra0") || strings.Contains(out, "match:") || strings.Contains(out, "optional") {
 		t.Errorf("unexpected extra NIC output:\n%s", out)
 	}
 }
@@ -502,10 +502,13 @@ func TestGenerateUserData_ExtraNICsNoGateway(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GenerateUserData() failed: %v", err)
 	}
-	for _, want := range []string{"extra0:", `macaddress: "00:50:56:aa:bb:01"`, "10.0.0.5/24"} {
+	for _, want := range []string{"extra0:", `macaddress: "00:50:56:aa:bb:01"`, "10.0.0.5/24", "optional: true"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("user-data missing %q", want)
 		}
+	}
+	if n := strings.Count(out, "optional: true"); n != 1 {
+		t.Errorf("optional must be set only on the extra NIC, got %d", n)
 	}
 	if n := strings.Count(out, "via: "); n != 1 {
 		t.Errorf("default route must exist only for the primary NIC, got %d", n)

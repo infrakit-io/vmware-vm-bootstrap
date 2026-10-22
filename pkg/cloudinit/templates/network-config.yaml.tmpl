@@ -15,6 +15,7 @@ ethernets:
   extra{{ $i }}:
     match:
       macaddress: "{{ $nic.MACAddress }}"
+    optional: true
     addresses:
       - {{ $nic.IPAddress }}/{{ $nic.CIDR }}
     dhcp4: false

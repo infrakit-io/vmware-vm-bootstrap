@@ -32,6 +32,7 @@ autoinstall:
       extra{{ $i }}:
         match:
           macaddress: "{{ $nic.MACAddress }}"
+        optional: true
         dhcp4: false
         addresses:
           - {{ $nic.IPAddress }}/{{ $nic.CIDR }}
