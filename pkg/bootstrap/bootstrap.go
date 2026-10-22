@@ -189,6 +189,25 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		"network", cfg.NetworkName,
 	)
 
+	// STEP 4b: Resolve the profile and run its slow, VM-independent preparation
+	// (ISO download + checksum, autoinstall ISO) BEFORE any VM exists: a slow or
+	// failed download must never leave a half-built VM behind.
+	provisioner, err := b.resolveProfile(cfg.Profile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve profile: %w", err)
+	}
+	isoMgr := b.newISOManager(ctx)
+	var prefetchedISO string
+	if pf, ok := provisioner.(profile.Prefetcher); ok {
+		prefetchedISO, err = pf.Prefetch(ctx, profile.Input{
+			VMName:    cfg.Name,
+			OSVersion: cfg.EffectiveOSVersion(),
+		}, profile.Runtime{ISOManager: isoMgr, Logger: logger})
+		if err != nil {
+			return nil, fmt.Errorf("pre-create preparation failed (no VM was created): %w", err)
+		}
+	}
+
 	// STEP 5: Create VM hardware
 	creator := b.newVMCreator(ctx)
 
@@ -217,9 +236,6 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 	if err != nil {
 		return nil, fmt.Errorf("VM creation failed: %w", err)
 	}
-
-	// Initialize ISO manager early (needed in defer cleanup)
-	isoMgr := b.newISOManager(ctx)
 
 	// On failure: by default the VM is powered off and KEPT (never destroyed without
 	// explicit opt-in via CleanupOnError); our own NoCloud ISO artifact is always removed.
@@ -319,11 +335,6 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 
 	logger.Info("VM hardware configuration complete")
 
-	provisioner, err := b.resolveProfile(cfg.Profile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve profile: %w", err)
-	}
-
 	profileResult, err = provisioner.ProvisionAndBoot(ctx, profile.Input{
 		VMName:            cfg.Name,
 		Username:          cfg.Username,
@@ -354,6 +365,8 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		ISODatastore:     isoDatastore,
 		ISODatastoreName: isoDatastoreName,
 		Logger:           logger,
+
+		PrefetchedISOPath: prefetchedISO,
 	})
 	if err != nil {
 		return nil, err

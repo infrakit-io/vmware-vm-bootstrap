@@ -103,7 +103,10 @@ func TestBootstrap_TagsAppliedOnlyAfterEverythingElse(t *testing.T) {
 	isoMgr := new(isomocks.ManagerInterface)
 	wireSuccessfulMocks(vc, creator, isoMgr)
 	isoMgr.ExpectedCalls = nil
-	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
+	isoMgr.On("CreateNoCloudISO", mock.Anything, mock.Anything, mock.Anything, "test-vm").Return("/tmp/nocloud.iso", nil)
+	isoMgr.On("UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("network error"))
 	vc.On("EnsureVMTags", mock.Anything, mock.Anything).Return([]string(nil), nil)
 
 	cfg := minimalConfig()
@@ -193,7 +196,10 @@ func TestBootstrap_FailureKeptVMErrorReportsPowerOffResult(t *testing.T) {
 			creator.ExpectedCalls = filterCalls(creator.ExpectedCalls, "PowerOff")
 			creator.On("PowerOff", mock.Anything).Return(tc.offErr)
 			isoMgr.ExpectedCalls = nil
-			isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
+			isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+			isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
+			isoMgr.On("CreateNoCloudISO", mock.Anything, mock.Anything, mock.Anything, "test-vm").Return("/tmp/nocloud.iso", nil)
+			isoMgr.On("UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("network error"))
 
 			b := testBootstrapper(vc, creator, isoMgr)
 			_, err := b.run(context.Background(), minimalConfig(), slog.Default())
@@ -202,7 +208,7 @@ func TestBootstrap_FailureKeptVMErrorReportsPowerOffResult(t *testing.T) {
 			require.ErrorAs(t, err, &kept)
 			assert.Equal(t, "test-vm", kept.Name)
 			assert.Equal(t, tc.want, kept.PoweredOff)
-			assert.Contains(t, err.Error(), "failed to download Ubuntu ISO", "original message preserved")
+			assert.Contains(t, err.Error(), "failed to upload Ubuntu ISO", "original message preserved")
 			creator.AssertNotCalled(t, "Delete", mock.Anything)
 		})
 	}
@@ -214,7 +220,10 @@ func TestBootstrap_FailurePowerOffUsesFreshContext(t *testing.T) {
 	isoMgr := new(isomocks.ManagerInterface)
 	wireSuccessfulMocks(vc, creator, isoMgr)
 	isoMgr.ExpectedCalls = nil
-	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
+	isoMgr.On("CreateNoCloudISO", mock.Anything, mock.Anything, mock.Anything, "test-vm").Return("/tmp/nocloud.iso", nil)
+	isoMgr.On("UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("network error"))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

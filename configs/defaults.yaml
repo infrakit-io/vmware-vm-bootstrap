@@ -53,7 +53,7 @@ timeouts:
   ssh_connect_seconds: 5         # Timeout per SSH connection attempt
   ssh_retry_delay_seconds: 2     # Delay between SSH retry attempts
   hardware_init_seconds: 5       # Wait for VM hardware to initialize after power-on
-  download_minutes: 30           # Max time to download Ubuntu ISO
+  download_minutes: 120          # Max time to download the Ubuntu ISO (separate from the VM-operation timeout)
   upload_progress_seconds: 2     # Progress print interval during datastore upload
   extract_progress_seconds: 3    # Progress print interval during ISO extraction
 

@@ -154,15 +154,17 @@ func (m *Manager) downloadFile(url, destPath string) error {
 		_ = out.Close()
 	}()
 
-	// HTTP GET with context
-	req, err := http.NewRequestWithContext(m.ctx, "GET", url, nil)
+	// The download has its own deadline (timeouts.download_minutes); it is never
+	// longer than the caller's context, but the HTTP client carries no overall
+	// timeout so a slow large ISO is bounded by this deadline only.
+	dlCtx, dlCancel := context.WithTimeout(m.ctx, configs.Defaults.Timeouts.Download())
+	defer dlCancel()
+	req, err := http.NewRequestWithContext(dlCtx, "GET", url, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	client := &http.Client{
-		Timeout: configs.Defaults.Timeouts.Download(),
-	}
+	client := &http.Client{}
 
 	resp, err := client.Do(req)
 	if err != nil {

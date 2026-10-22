@@ -6,11 +6,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/infrakit-io/vmware-vm-bootstrap/internal/utils"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/cloudinit"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile"
-	"github.com/google/uuid"
 )
 
 type Provisioner struct{}
@@ -18,6 +18,27 @@ type Provisioner struct{}
 func New() *Provisioner { return &Provisioner{} }
 
 func (p *Provisioner) Name() string { return "ubuntu" }
+
+// Prefetch downloads + checksum-verifies the Ubuntu ISO and prepares the
+// autoinstall ISO. None of it depends on the VM, so it runs before VM creation.
+func (p *Provisioner) Prefetch(ctx context.Context, in profile.Input, rt profile.Runtime) (string, error) {
+	return p.fetchISO(in, rt)
+}
+
+func (p *Provisioner) fetchISO(in profile.Input, rt profile.Runtime) (string, error) {
+	ubuntuISOPath, err := rt.ISOManager.DownloadUbuntu(in.OSVersion)
+	if err != nil {
+		return "", fmt.Errorf("failed to download Ubuntu ISO: %w", err)
+	}
+	rt.Logger.Info("Ubuntu ISO ready", "path", ubuntuISOPath)
+
+	ubuntuISOPath, _, err = rt.ISOManager.ModifyUbuntuISO(ubuntuISOPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to modify Ubuntu ISO: %w", err)
+	}
+	rt.Logger.Info("Ubuntu ISO modified for autoinstall", "path", ubuntuISOPath)
+	return ubuntuISOPath, nil
+}
 
 func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt profile.Runtime) (profile.Result, error) {
 	generator, err := cloudinit.NewGenerator()
@@ -107,17 +128,13 @@ func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt
 
 	rt.Logger.Info("Cloud-init configs generated")
 
-	ubuntuISOPath, err := rt.ISOManager.DownloadUbuntu(in.OSVersion)
-	if err != nil {
-		return profile.Result{}, fmt.Errorf("failed to download Ubuntu ISO: %w", err)
+	ubuntuISOPath := rt.PrefetchedISOPath
+	if ubuntuISOPath == "" {
+		ubuntuISOPath, err = p.fetchISO(in, rt)
+		if err != nil {
+			return profile.Result{}, err
+		}
 	}
-	rt.Logger.Info("Ubuntu ISO ready", "path", ubuntuISOPath)
-
-	ubuntuISOPath, _, err = rt.ISOManager.ModifyUbuntuISO(ubuntuISOPath)
-	if err != nil {
-		return profile.Result{}, fmt.Errorf("failed to modify Ubuntu ISO: %w", err)
-	}
-	rt.Logger.Info("Ubuntu ISO modified for autoinstall", "path", ubuntuISOPath)
 
 	nocloudISOPath, err := rt.ISOManager.CreateNoCloudISO(userData, metaData, networkConfig, in.VMName)
 	if err != nil {

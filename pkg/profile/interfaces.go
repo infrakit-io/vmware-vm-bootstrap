@@ -51,11 +51,22 @@ type Runtime struct {
 	ISODatastore     *object.Datastore
 	ISODatastoreName string
 	Logger           *slog.Logger
+
+	// PrefetchedISOPath is the verified, ready-to-upload boot ISO produced by
+	// Prefetch (empty when the profile has no Prefetch step).
+	PrefetchedISOPath string
 }
 
 // Result carries profile-specific artifacts needed by bootstrap core.
 type Result struct {
 	NoCloudUploadPath string
+}
+
+// Prefetcher is an optional Provisioner capability: slow, VM-independent work
+// (ISO download + checksum verification) done BEFORE the VM is created, so a
+// failure leaves no VM behind. Runtime.CreatedVM is nil during Prefetch.
+type Prefetcher interface {
+	Prefetch(ctx context.Context, in Input, rt Runtime) (isoPath string, err error)
 }
 
 // Provisioner is the OS-profile contract used by bootstrap flow.

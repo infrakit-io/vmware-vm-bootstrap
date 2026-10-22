@@ -249,6 +249,8 @@ func TestBootstrap_VMCreationFails_cleansUp(t *testing.T) {
 
 	creator.On("CreateSpec", mock.Anything).Return(&types.VirtualMachineConfigSpec{})
 	creator.On("Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil, errors.New("not enough resources"))
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
 
 	b := testBootstrapper(vc, creator, isoMgr)
 	_, err := b.run(context.Background(), minimalConfig(), slog.Default())
@@ -277,6 +279,9 @@ func TestBootstrap_EnsureSCSIControllerFails(t *testing.T) {
 	creator.On("PowerOff", vm).Return(nil) // failure path keeps the VM, powered off
 
 	isoMgr.On("DeleteFromDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
 
 	b := testBootstrapper(vc, creator, isoMgr)
 	_, err := b.run(context.Background(), minimalConfig(), slog.Default())
@@ -417,14 +422,17 @@ func TestBootstrap_ISODownloadFails_keepsVMPoweredOff(t *testing.T) {
 	creator.On("GetMACAddress", vm).Return("00:50:56:00:00:01", nil)
 	creator.On("PowerOff", vm).Return(nil)
 
-	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
+	isoMgr.On("CreateNoCloudISO", mock.Anything, mock.Anything, mock.Anything, "test-vm").Return("/tmp/nocloud.iso", nil)
+	isoMgr.On("UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("network error"))
 	isoMgr.On("DeleteFromDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	b := testBootstrapper(vc, creator, isoMgr)
 	_, err := b.run(context.Background(), minimalConfig(), slog.Default())
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to download Ubuntu ISO")
+	assert.Contains(t, err.Error(), "failed to upload Ubuntu ISO")
 	creator.AssertCalled(t, "PowerOff", vm)  // VM stopped...
 	creator.AssertNotCalled(t, "Delete", vm) // ...but never destroyed by default
 }
@@ -435,7 +443,10 @@ func TestBootstrap_ISODownloadFails_CleanupOnErrorDeletesVM(t *testing.T) {
 	isoMgr := new(isomocks.ManagerInterface)
 	wireSuccessfulMocks(vc, creator, isoMgr)
 	isoMgr.ExpectedCalls = nil
-	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("network error"))
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
+	isoMgr.On("CreateNoCloudISO", mock.Anything, mock.Anything, mock.Anything, "test-vm").Return("/tmp/nocloud.iso", nil)
+	isoMgr.On("UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(errors.New("network error"))
 
 	cfg := minimalConfig()
 	cfg.CleanupOnError = true
@@ -530,6 +541,9 @@ func TestBootstrap_InvalidNetmask(t *testing.T) {
 
 	cfg := minimalConfig()
 	cfg.Netmask = "invalid"
+
+	isoMgr.On("DownloadUbuntu", "24.04").Return("/tmp/ubuntu.iso", nil)
+	isoMgr.On("ModifyUbuntuISO", "/tmp/ubuntu.iso").Return("/tmp/ubuntu-autoinstall.iso", false, nil)
 
 	b := testBootstrapper(vc, creator, isoMgr)
 	_, err := b.run(context.Background(), cfg, slog.Default())
@@ -912,4 +926,31 @@ func TestVerifySSHAccess_portOpen(t *testing.T) {
 	addr := ln.Addr().(*net.TCPAddr)
 	open := utils.IsPortOpen("127.0.0.1", addr.Port, time.Second)
 	assert.True(t, open)
+}
+
+// A failed ISO download must happen BEFORE VM creation and leave no VM behind.
+func TestBootstrap_DownloadFailureCreatesNoVM(t *testing.T) {
+	vc := new(vcmocks.ClientInterface)
+	creator := new(vmmocks.CreatorInterface) // no expectations: any call panics
+	isoMgr := new(isomocks.ManagerInterface)
+
+	vc.On("FindVM", "DC1", "test-vm").Return(nil, nil)
+	vc.On("FindFolder", "DC1", "Production").Return(&object.Folder{}, nil)
+	vc.On("FindResourcePool", "DC1", "pool").Return(&object.ResourcePool{}, nil)
+	vc.On("FindDatastore", "DC1", "SSD01").Return(&object.Datastore{}, nil)
+	vc.On("FindNetwork", "DC1", "LAN").Return((*object.Network)(nil), nil)
+	vc.On("Disconnect").Return(nil)
+	isoMgr.On("DownloadUbuntu", "24.04").Return("", errors.New("download failed: context deadline exceeded"))
+
+	b := testBootstrapper(vc, creator, isoMgr)
+	_, err := b.run(context.Background(), minimalConfig(), slog.Default())
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to download Ubuntu ISO")
+	assert.Contains(t, err.Error(), "no VM was created")
+	var kept *KeptVMError
+	assert.False(t, errors.As(err, &kept))
+	creator.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+	creator.AssertNotCalled(t, "PowerOff", mock.Anything)
+	isoMgr.AssertNotCalled(t, "UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }

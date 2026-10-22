@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"os"
 	"os/signal"
 	"strings"
@@ -277,7 +278,7 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 
 	logger := getLogger()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute+configs.Defaults.Timeouts.Download())
 	defer cancel()
 
 	// Take over Ctrl+C from the global handler so we can offer VM cleanup on interrupt.

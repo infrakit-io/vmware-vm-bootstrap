@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"io"
 	"os"
 	"os/signal"
@@ -117,7 +118,7 @@ func runCreate(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, opts createOption
 	if timeoutMinutes == 0 {
 		timeoutMinutes = 45
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutMinutes)*time.Minute+configs.Defaults.Timeouts.Download())
 	defer cancel()
 	// Take over Ctrl+C from the global handler (which exits 0) so the bootstrap
 	// failure handler runs: power off, keep the VM, remove the NoCloud ISO.

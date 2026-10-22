@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -145,7 +146,7 @@ func smokeVM(vmConfigPath string, cleanup bool) error {
 
 	// Bootstrap
 	logger := getLogger()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(45)*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(45)*time.Minute+configs.Defaults.Timeouts.Download())
 	defer cancel()
 
 	// Handle Ctrl+C locally for cleanup

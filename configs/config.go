@@ -54,6 +54,9 @@ func applyBuiltinFallbacks(d *LibDefaults) {
 	if d == nil {
 		return
 	}
+	if d.Timeouts.DownloadMinutes <= 0 {
+		d.Timeouts.DownloadMinutes = 120
+	}
 	if d.Talos.DefaultVersion == "" {
 		d.Talos.DefaultVersion = "v1.12.4"
 	}
