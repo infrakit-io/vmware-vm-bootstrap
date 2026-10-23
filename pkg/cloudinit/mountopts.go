@@ -30,6 +30,7 @@ func ValidateMountOptions(field string, opts []string) error {
 	return nil
 }
 
+// Ref: docs/ubuntu-official/curtin-storage.rst.txt:676-678 (mount action `options`).
 // joinMountOptions renders the curtin `options` value. Curtin's options key
 // REPLACES the default "defaults", so it is always kept first.
 // Empty input returns "" (the template then omits the key).
