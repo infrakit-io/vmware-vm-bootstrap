@@ -18,38 +18,40 @@ import (
 // vmFileConfig is the YAML structure for vm.*.sops.yaml (runtime fields).
 type vmFileConfig struct {
 	VM struct {
-		Name              string      `yaml:"name"`
-		Profile           string      `yaml:"profile,omitempty"`
-		CPUs              int         `yaml:"cpus"`
-		MemoryMB          int         `yaml:"memory_mb"`
-		DiskSizeGB        int         `yaml:"disk_size_gb"`
-		DataDiskSizeGB    int         `yaml:"data_disk_size_gb"`
-		DataDiskMountPath string      `yaml:"data_disk_mount_path"`
-		DataDiskDatastore string      `yaml:"data_disk_datastore,omitempty"`
-		CleanupOnError    bool        `yaml:"cleanup_on_error,omitempty"`
-		CPUHotAdd         *bool       `yaml:"cpu_hot_add,omitempty"`
-		MemoryHotAdd      *bool       `yaml:"memory_hot_add,omitempty"`
-		ExtraNICs         []vmNICFile `yaml:"extra_nics,omitempty"`
-		Tags              []vmTagFile `yaml:"tags,omitempty"`
-		SwapSizeGB        int         `yaml:"swap_size_gb"`
-		Username          string      `yaml:"username"`
-		SSHKeyPath        string      `yaml:"ssh_key_path"`
-		SSHKey            string      `yaml:"ssh_key"`
-		Password          string      `yaml:"password"`
-		SSHPort           int         `yaml:"ssh_port"`
-		AllowPasswordSSH  bool        `yaml:"allow_password_ssh"`
-		IPAddress         string      `yaml:"ip_address"`
-		Netmask           string      `yaml:"netmask"`
-		Gateway           string      `yaml:"gateway"`
-		DNS               string      `yaml:"dns"`
-		DNS2              string      `yaml:"dns2"`
-		Datastore         string      `yaml:"datastore"`
-		NetworkName       string      `yaml:"network_name"`
-		NetworkInterface  string      `yaml:"network_interface"`
-		Folder            string      `yaml:"folder"`
-		ResourcePool      string      `yaml:"resource_pool"`
-		TimeoutMinutes    int         `yaml:"timeout_minutes"`
-		Profiles          struct {
+		Name                 string      `yaml:"name"`
+		Profile              string      `yaml:"profile,omitempty"`
+		CPUs                 int         `yaml:"cpus"`
+		MemoryMB             int         `yaml:"memory_mb"`
+		DiskSizeGB           int         `yaml:"disk_size_gb"`
+		DataDiskSizeGB       int         `yaml:"data_disk_size_gb"`
+		DataDiskMountPath    string      `yaml:"data_disk_mount_path"`
+		DataDiskDatastore    string      `yaml:"data_disk_datastore,omitempty"`
+		RootMountOptions     []string    `yaml:"root_mount_options,omitempty"`
+		DataDiskMountOptions []string    `yaml:"data_disk_mount_options,omitempty"`
+		CleanupOnError       bool        `yaml:"cleanup_on_error,omitempty"`
+		CPUHotAdd            *bool       `yaml:"cpu_hot_add,omitempty"`
+		MemoryHotAdd         *bool       `yaml:"memory_hot_add,omitempty"`
+		ExtraNICs            []vmNICFile `yaml:"extra_nics,omitempty"`
+		Tags                 []vmTagFile `yaml:"tags,omitempty"`
+		SwapSizeGB           int         `yaml:"swap_size_gb"`
+		Username             string      `yaml:"username"`
+		SSHKeyPath           string      `yaml:"ssh_key_path"`
+		SSHKey               string      `yaml:"ssh_key"`
+		Password             string      `yaml:"password"`
+		SSHPort              int         `yaml:"ssh_port"`
+		AllowPasswordSSH     bool        `yaml:"allow_password_ssh"`
+		IPAddress            string      `yaml:"ip_address"`
+		Netmask              string      `yaml:"netmask"`
+		Gateway              string      `yaml:"gateway"`
+		DNS                  string      `yaml:"dns"`
+		DNS2                 string      `yaml:"dns2"`
+		Datastore            string      `yaml:"datastore"`
+		NetworkName          string      `yaml:"network_name"`
+		NetworkInterface     string      `yaml:"network_interface"`
+		Folder               string      `yaml:"folder"`
+		ResourcePool         string      `yaml:"resource_pool"`
+		TimeoutMinutes       int         `yaml:"timeout_minutes"`
+		Profiles             struct {
 			Ubuntu struct {
 				Version string `yaml:"version,omitempty"`
 			} `yaml:"ubuntu,omitempty"`
@@ -172,6 +174,8 @@ func buildVMConfig(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, resultPath st
 	cfg.Profiles.Talos.Version = v.Profiles.Talos.Version
 	cfg.Profiles.Talos.SchematicID = v.Profiles.Talos.SchematicID
 	applyVMExtras(cfg, v.DataDiskDatastore, v.CPUHotAdd, v.MemoryHotAdd, v.ExtraNICs, v.Tags)
+	cfg.RootMountOptions = v.RootMountOptions
+	cfg.DataDiskMountOptions = v.DataDiskMountOptions
 	cfg.CleanupOnError = v.CleanupOnError // opt-in: destroys the VM on failure
 
 	if v.DataDiskSizeGB > 0 {

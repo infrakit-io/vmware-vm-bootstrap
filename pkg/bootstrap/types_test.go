@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
@@ -277,5 +278,38 @@ func TestEffectiveVersionHelpers(t *testing.T) {
 	}
 	if got := cfg.EffectiveTalosVersion(); got != "v1.12.4" {
 		t.Fatalf("EffectiveTalosVersion() = %q, want %q", got, "v1.12.4")
+	}
+}
+
+func TestValidate_MountOptions(t *testing.T) {
+	cfg := minimalValidConfigForTests()
+	cfg.RootMountOptions = []string{"usrquota", "grpquota"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("valid ubuntu root options rejected: %v", err)
+	}
+	cfg.RootMountOptions = []string{"bogus"}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected allow-list rejection")
+	}
+}
+
+func TestValidate_TalosRejectsMountOptions(t *testing.T) {
+	for _, set := range []func(*VMConfig){
+		func(c *VMConfig) { c.RootMountOptions = []string{"usrquota"} },
+		func(c *VMConfig) {
+			n := 10
+			c.DataDiskSizeGB, c.DataDiskMountPath = &n, "/data"
+			c.DataDiskMountOptions = []string{"nosuid"}
+		},
+	} {
+		cfg := minimalValidConfigForTests()
+		cfg.Profile = "talos"
+		cfg.Profiles.Ubuntu.Version = ""
+		cfg.Profiles.Talos.Version = "v1.12.0"
+		cfg.Profiles.Talos.SchematicID = "903b2da78f99adef03cbbd4df6714563823f63218508800751560d3bc3557e40"
+		set(cfg)
+		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "talos") {
+			t.Fatalf("expected talos rejection, got %v", err)
+		}
 	}
 }

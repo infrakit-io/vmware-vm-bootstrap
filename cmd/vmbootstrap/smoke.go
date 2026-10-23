@@ -103,6 +103,8 @@ func smokeVM(vmConfigPath string, cleanup bool) error {
 	cfg.Profiles.Talos.Version = v.Profiles.Talos.Version
 	cfg.Profiles.Talos.SchematicID = v.Profiles.Talos.SchematicID
 	applyVMExtras(cfg, v.DataDiskDatastore, v.CPUHotAdd, v.MemoryHotAdd, v.ExtraNICs, v.Tags)
+	cfg.RootMountOptions = v.RootMountOptions
+	cfg.DataDiskMountOptions = v.DataDiskMountOptions
 
 	if v.DataDiskSizeGB > 0 {
 		size := v.DataDiskSizeGB

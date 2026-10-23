@@ -31,13 +31,15 @@ var sel = wizard.NewSelector()
 // VMWizardOutput is the YAML structure for vm.*.sops.yaml files.
 type VMWizardOutput struct {
 	VM struct {
-		Name              string `yaml:"name"`
-		Profile           string `yaml:"profile,omitempty"`
-		CPUs              int    `yaml:"cpus"`
-		MemoryMB          int    `yaml:"memory_mb"`
-		DiskSizeGB        int    `yaml:"disk_size_gb"`
-		DataDiskSizeGB    int    `yaml:"data_disk_size_gb,omitempty"`
-		DataDiskMountPath string `yaml:"data_disk_mount_path,omitempty"`
+		Name                 string   `yaml:"name"`
+		Profile              string   `yaml:"profile,omitempty"`
+		CPUs                 int      `yaml:"cpus"`
+		MemoryMB             int      `yaml:"memory_mb"`
+		DiskSizeGB           int      `yaml:"disk_size_gb"`
+		DataDiskSizeGB       int      `yaml:"data_disk_size_gb,omitempty"`
+		DataDiskMountPath    string   `yaml:"data_disk_mount_path,omitempty"`
+		RootMountOptions     []string `yaml:"root_mount_options,omitempty"`
+		DataDiskMountOptions []string `yaml:"data_disk_mount_options,omitempty"`
 		// Advanced options: edited in the YAML file, preserved (not prompted) by the wizard.
 		DataDiskDatastore string      `yaml:"data_disk_datastore,omitempty"`
 		CleanupOnError    bool        `yaml:"cleanup_on_error,omitempty"`

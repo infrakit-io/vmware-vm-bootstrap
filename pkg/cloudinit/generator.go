@@ -45,6 +45,9 @@ type UserDataInput struct {
 	InterfaceName    string   // Guest NIC name (e.g., "ens192")
 	// Data disk mount point (empty = no data disk, uses layout:lvm)
 	DataDiskMountPath string // e.g., "/data"
+	// Optional mount options (validated allow-list); empty = curtin default.
+	RootMountOptions     []string
+	DataDiskMountOptions []string
 	// Network (required for package installation during autoinstall)
 	IPAddress string
 	CIDR      int
@@ -111,8 +114,20 @@ func (g *Generator) GenerateUserData(input *UserDataInput) (string, error) {
 		input.InterfaceName = configs.Defaults.Network.Interface
 	}
 
+	if err := ValidateMountOptions("root_mount_options", input.RootMountOptions); err != nil {
+		return "", err
+	}
+	if err := ValidateMountOptions("data_disk_mount_options", input.DataDiskMountOptions); err != nil {
+		return "", err
+	}
+	data := struct {
+		*UserDataInput
+		RootMountOptions     string
+		DataDiskMountOptions string
+	}{input, joinMountOptions(input.RootMountOptions), joinMountOptions(input.DataDiskMountOptions)}
+
 	var buf bytes.Buffer
-	if err := g.autoinstallTmpl.Execute(&buf, input); err != nil {
+	if err := g.autoinstallTmpl.Execute(&buf, data); err != nil {
 		return "", fmt.Errorf("failed to execute autoinstall template: %w", err)
 	}
 

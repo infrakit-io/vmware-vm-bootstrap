@@ -8,6 +8,7 @@ import (
 
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/infrakit-io/vmware-vm-bootstrap/internal/utils"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/cloudinit"
 	"github.com/vmware/govmomi/vim25/types"
 )
 
@@ -21,15 +22,17 @@ type VMConfig struct {
 	VCenterInsecure bool   // Skip TLS verification (not recommended for production)
 
 	// === VM Specifications ===
-	Name              string // VM name (e.g., "web-server-01")
-	CPUs              int    // Number of CPUs (e.g., 4)
-	MemoryMB          int    // Memory in MB (e.g., 8192)
-	DiskSizeGB        int    // OS disk size in GB (e.g., 40)
-	DataDiskSizeGB    *int   // Optional data disk size in GB (e.g., 500) - nil = not created
-	DataDiskMountPath string // Mount point for data disk (e.g., "/data") - required if DataDiskSizeGB set
-	DataDiskDatastore string // Optional datastore for the data disk - empty = same as Datastore
-	CPUHotAdd         *bool  // Optional CPU hot-add - nil = vCenter default
-	MemoryHotAdd      *bool  // Optional memory hot-add - nil = vCenter default
+	Name                 string   // VM name (e.g., "web-server-01")
+	CPUs                 int      // Number of CPUs (e.g., 4)
+	MemoryMB             int      // Memory in MB (e.g., 8192)
+	DiskSizeGB           int      // OS disk size in GB (e.g., 40)
+	DataDiskSizeGB       *int     // Optional data disk size in GB (e.g., 500) - nil = not created
+	DataDiskMountPath    string   // Mount point for data disk (e.g., "/data") - required if DataDiskSizeGB set
+	RootMountOptions     []string // Optional mount options for / (ubuntu only), e.g. usrquota,grpquota
+	DataDiskMountOptions []string // Optional mount options for the data disk (ubuntu only)
+	DataDiskDatastore    string   // Optional datastore for the data disk - empty = same as Datastore
+	CPUHotAdd            *bool    // Optional CPU hot-add - nil = vCenter default
+	MemoryHotAdd         *bool    // Optional memory hot-add - nil = vCenter default
 
 	// === Network Configuration ===
 	NetworkName      string   // Network name (e.g., "LAN_Management")
@@ -176,6 +179,18 @@ func (cfg *VMConfig) Validate() error {
 	}
 	if cfg.DataDiskSizeGB != nil && cfg.DataDiskMountPath == "" {
 		return fmt.Errorf("DataDiskMountPath is required when DataDiskSizeGB is set")
+	}
+	if err := cloudinit.ValidateMountOptions("root_mount_options", cfg.RootMountOptions); err != nil {
+		return err
+	}
+	if err := cloudinit.ValidateMountOptions("data_disk_mount_options", cfg.DataDiskMountOptions); err != nil {
+		return err
+	}
+	if len(cfg.DataDiskMountOptions) > 0 && cfg.DataDiskSizeGB == nil {
+		return fmt.Errorf("data_disk_mount_options requires a data disk")
+	}
+	if profile == "talos" && (len(cfg.RootMountOptions) > 0 || len(cfg.DataDiskMountOptions) > 0) {
+		return fmt.Errorf("root_mount_options/data_disk_mount_options are not supported by the talos profile")
 	}
 	if profile == "ubuntu" && cfg.effectiveUbuntuVersion() == "" {
 		return fmt.Errorf("Profiles.Ubuntu.Version is required for ubuntu profile")

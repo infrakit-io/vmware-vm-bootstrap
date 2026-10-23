@@ -11,24 +11,26 @@ import (
 
 // Input is normalized VM provisioning data consumed by OS profiles.
 type Input struct {
-	VMName            string
-	Username          string
-	Password          string
-	PasswordHash      string
-	SSHPublicKeys     []string
-	AllowPasswordSSH  bool
-	Timezone          string
-	Locale            string
-	NetworkInterface  string
-	IPAddress         string
-	Netmask           string
-	Gateway           string
-	DNS               []string
-	ExtraNICs         []ExtraNIC
-	DataDiskMountPath string
-	SwapSizeGB        *int
-	OSVersion         string
-	OSSchematicID     string
+	VMName               string
+	Username             string
+	Password             string
+	PasswordHash         string
+	SSHPublicKeys        []string
+	AllowPasswordSSH     bool
+	Timezone             string
+	Locale               string
+	NetworkInterface     string
+	IPAddress            string
+	Netmask              string
+	Gateway              string
+	DNS                  []string
+	ExtraNICs            []ExtraNIC
+	DataDiskMountPath    string
+	RootMountOptions     []string
+	DataDiskMountOptions []string
+	SwapSizeGB           *int
+	OSVersion            string
+	OSSchematicID        string
 
 	VCenterHost     string
 	VCenterUsername string

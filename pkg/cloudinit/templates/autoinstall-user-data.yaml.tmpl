@@ -126,6 +126,9 @@ autoinstall:
         id: root-mount
         device: root-format
         path: /
+      {{- if .RootMountOptions }}
+        options: "{{ .RootMountOptions }}"
+      {{- end }}
       {{- if .DataDiskMountPath }}
 
       - type: disk
@@ -149,6 +152,9 @@ autoinstall:
         id: data-mount
         device: data-format
         path: {{ .DataDiskMountPath }}
+      {{- if .DataDiskMountOptions }}
+        options: "{{ .DataDiskMountOptions }}"
+      {{- end }}
       {{- end }}
 
   identity:
