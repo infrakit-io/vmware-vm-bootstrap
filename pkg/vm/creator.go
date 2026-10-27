@@ -136,6 +136,15 @@ func (c *Creator) EnsureSCSIController(vm *object.VirtualMachine) (int32, error)
 // vCenter places (and names) the file on that datastore; empty keeps the
 // original behaviour (no FileName).
 func (c *Creator) AddDisk(vm *object.VirtualMachine, datastore *object.Datastore, dsName string, sizeGB int64, scsiKey int32) error {
+	return c.addDisk(vm, datastore, dsName, sizeGB, nil)
+}
+
+// AddDiskAtUnit is AddDisk with an explicit SCSI unit number on the controller.
+func (c *Creator) AddDiskAtUnit(vm *object.VirtualMachine, datastore *object.Datastore, dsName string, sizeGB int64, unit int32) error {
+	return c.addDisk(vm, datastore, dsName, sizeGB, &unit)
+}
+
+func (c *Creator) addDisk(vm *object.VirtualMachine, datastore *object.Datastore, dsName string, sizeGB int64, unit *int32) error {
 	devices, err := vm.Device(c.ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get VM devices: %w", err)
@@ -150,6 +159,9 @@ func (c *Creator) AddDisk(vm *object.VirtualMachine, datastore *object.Datastore
 	// vCenter auto-generates the file name, which prevents collisions.
 	disk := devices.CreateDisk(controller, datastore.Reference(), "")
 	disk.CapacityInKB = sizeGB * 1024 * 1024
+	if unit != nil {
+		disk.UnitNumber = unit
+	}
 
 	// Configure backing as thin provisioned (matches Python implementation)
 	if backing, ok := disk.Backing.(*types.VirtualDiskFlatVer2BackingInfo); ok {
