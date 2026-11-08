@@ -37,6 +37,9 @@ type Config struct {
 	Datastore      string // Datastore name
 	CPUHotAdd      *bool  // Optional CPU hot-add; nil = leave vCenter default
 	MemoryHotAdd   *bool  // Optional memory hot-add; nil = leave vCenter default
+	// ExplicitFirmware writes the firmware into the spec even for "bios". Needed when the
+	// guest type's vCenter default may be EFI (rhel9_64Guest) and the installer is BIOS-only.
+	ExplicitFirmware bool
 }
 
 // CreateSpec builds a VirtualMachineConfigSpec from the given configuration.
@@ -70,6 +73,8 @@ func (c *Creator) CreateSpec(cfg *Config) *types.VirtualMachineConfigSpec {
 	// Set firmware
 	if firmware == "efi" {
 		spec.Firmware = string(types.GuestOsDescriptorFirmwareTypeEfi)
+	} else if cfg.ExplicitFirmware {
+		spec.Firmware = string(types.GuestOsDescriptorFirmwareTypeBios)
 	}
 
 	return spec

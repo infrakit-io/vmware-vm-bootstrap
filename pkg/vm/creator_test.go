@@ -134,3 +134,16 @@ func TestCreateSpec_hotAddSet(t *testing.T) {
 		t.Errorf("MemoryHotAddEnabled = %v, want false", spec.MemoryHotAddEnabled)
 	}
 }
+
+func TestCreateSpec_explicitFirmwareBios(t *testing.T) {
+	creator := NewCreator(context.Background())
+	spec := creator.CreateSpec(&Config{Name: "vm", Firmware: "bios", Datastore: "ds", ExplicitFirmware: true})
+	if spec.Firmware != string(types.GuestOsDescriptorFirmwareTypeBios) {
+		t.Errorf("Firmware = %q, want bios", spec.Firmware)
+	}
+	// Default (ubuntu/talos) path stays unchanged: empty.
+	spec = creator.CreateSpec(&Config{Name: "vm", Firmware: "bios", Datastore: "ds"})
+	if spec.Firmware != "" {
+		t.Errorf("default path must leave Firmware empty, got %q", spec.Firmware)
+	}
+}

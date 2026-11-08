@@ -127,6 +127,7 @@ func TestBootstrap_AlmaFlow(t *testing.T) {
 	assert.Equal(t, []string{"powered-off", "first-boot", "ssh"}, order)
 	require.NotNil(t, gotCfg)
 	assert.Equal(t, "rhel9_64Guest", gotCfg.GuestOS, "EL9 vSphere guest ID")
+	assert.True(t, gotCfg.ExplicitFirmware, "alma spec must carry Firmware=bios explicitly")
 	assert.Contains(t, ks, "--device=00:50:56:aa:bb:cc")
 	assert.Contains(t, ks, "part /home ")
 	isoMgr.AssertNotCalled(t, "DownloadUbuntu", mock.Anything)

@@ -234,6 +234,7 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 	}
 	if cfg.EffectiveProfile() == "alma" {
 		vmConfig.GuestOS = configs.Defaults.Alma.GuestOS
+		vmConfig.ExplicitFirmware = true // never leave BIOS to the guest-type default (EFI would skip the patched isolinux menu)
 	}
 
 	if cfg.DataDiskSizeGB != nil {

@@ -954,3 +954,17 @@ func TestBootstrap_DownloadFailureCreatesNoVM(t *testing.T) {
 	creator.AssertNotCalled(t, "PowerOff", mock.Anything)
 	isoMgr.AssertNotCalled(t, "UploadToDatastore", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestBootstrap_UbuntuSpecKeepsDefaultFirmware(t *testing.T) {
+	vc := new(vcmocks.ClientInterface)
+	creator := new(vmmocks.CreatorInterface)
+	isoMgr := new(isomocks.ManagerInterface)
+	wireSuccessfulMocks(vc, creator, isoMgr)
+	var got *vmiface.Config
+	creator.ExpectedCalls = filterCalls(creator.ExpectedCalls, "CreateSpec")
+	creator.On("CreateSpec", mock.Anything).Run(func(a mock.Arguments) { got = a.Get(0).(*vmiface.Config) }).Return(&types.VirtualMachineConfigSpec{})
+	_, _ = testBootstrapper(vc, creator, isoMgr).run(context.Background(), minimalConfig(), slog.Default())
+	require.NotNil(t, got)
+	assert.False(t, got.ExplicitFirmware)
+	assert.Empty(t, got.GuestOS)
+}
