@@ -113,8 +113,15 @@ func (m *Manager) DownloadUbuntu(version string) (string, error) {
 		return "", err
 	}
 
+	return m.fetchVerified(release.URL, checksum)
+}
+
+// fetchVerified returns the local path of the ISO at url, downloading it when
+// not cached. A cached file is used only if it matches the pinned checksum; a
+// mismatching cache or download is deleted.
+func (m *Manager) fetchVerified(url, checksum string) (string, error) {
 	// Check if already cached
-	filename := filepath.Base(release.URL)
+	filename := filepath.Base(url)
 	localPath := filepath.Join(m.cacheDir, filename)
 
 	if _, err := os.Stat(localPath); err == nil {
@@ -130,7 +137,7 @@ func (m *Manager) DownloadUbuntu(version string) (string, error) {
 	}
 
 	// Download ISO
-	if err := m.downloadFile(release.URL, localPath); err != nil {
+	if err := m.downloadFile(url, localPath); err != nil {
 		_ = os.Remove(localPath)
 		return "", fmt.Errorf("download failed: %w", err)
 	}

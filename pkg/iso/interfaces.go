@@ -12,6 +12,9 @@ var _ ManagerInterface = (*Manager)(nil)
 type ManagerInterface interface {
 	DownloadUbuntu(version string) (string, error)
 	ModifyUbuntuISO(originalISOPath string) (string, bool, error)
+	DownloadAlma(version string) (string, error)
+	ModifyAlmaISO(originalISOPath string) (string, bool, error)
+	CreateKickstartISO(kickstart, vmName string) (string, error)
 	CreateNoCloudISO(userData, metaData, networkConfig, vmName string) (string, error)
 	UploadToDatastore(ds *object.Datastore, localPath, remotePath, vcenterHost, vcenterUser, vcenterPass string, insecure bool) error
 	UploadAlways(ds *object.Datastore, localPath, remotePath, vcenterHost, vcenterUser, vcenterPass string, insecure bool) error

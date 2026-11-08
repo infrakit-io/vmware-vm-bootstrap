@@ -22,6 +22,21 @@ func (m *ManagerInterface) ModifyUbuntuISO(originalISOPath string) (string, bool
 	return args.String(0), args.Bool(1), args.Error(2)
 }
 
+func (m *ManagerInterface) DownloadAlma(version string) (string, error) {
+	args := m.Called(version)
+	return args.String(0), args.Error(1)
+}
+
+func (m *ManagerInterface) ModifyAlmaISO(originalISOPath string) (string, bool, error) {
+	args := m.Called(originalISOPath)
+	return args.String(0), args.Bool(1), args.Error(2)
+}
+
+func (m *ManagerInterface) CreateKickstartISO(kickstart, vmName string) (string, error) {
+	args := m.Called(kickstart, vmName)
+	return args.String(0), args.Error(1)
+}
+
 func (m *ManagerInterface) CreateNoCloudISO(userData, metaData, networkConfig, vmName string) (string, error) {
 	args := m.Called(userData, metaData, networkConfig, vmName)
 	return args.String(0), args.Error(1)

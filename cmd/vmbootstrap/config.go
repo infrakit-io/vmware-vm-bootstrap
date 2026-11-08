@@ -69,6 +69,9 @@ type VMWizardOutput struct {
 			Ubuntu struct {
 				Version string `yaml:"version,omitempty"`
 			} `yaml:"ubuntu,omitempty"`
+			Alma struct {
+				Version string `yaml:"version,omitempty"`
+			} `yaml:"alma,omitempty"`
 			Talos struct {
 				Version     string `yaml:"version,omitempty"`
 				SchematicID string `yaml:"schematic_id,omitempty"`
@@ -239,6 +242,8 @@ func runVMOSProfileStep(vm *VMWizardOutput) bool {
 			}
 			fmt.Println("  Talos schematic ID is required")
 		}
+	case "alma":
+		selectAlmaVersion(&vm.VM.Profiles.Alma.Version)
 	default:
 		selectUbuntuVersion(&vm.VM.Profiles.Ubuntu.Version)
 	}
@@ -1162,9 +1167,24 @@ func buildUbuntuOptions() []string {
 }
 
 func selectOSProfile(defaultProfile string) string {
-	options := []string{"ubuntu", "talos"}
+	options := []string{"ubuntu", "alma", "talos"}
 	profileChoice := sel.Select(options, defaultProfile, "OS profile:")
 	return profileChoice
+}
+
+func selectAlmaVersion(target *string) {
+	var options []string
+	for ver := range configs.AlmaReleases.Releases {
+		options = append(options, ver)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(options)))
+	def := options[0]
+	for _, o := range options {
+		if o == *target {
+			def = o
+		}
+	}
+	*target = sel.Select(options, def, "AlmaLinux version:")
 }
 
 func selectUbuntuVersion(target *string) {
@@ -1261,6 +1281,8 @@ func printSummary(out VMWizardOutput) {
 		if v.Profiles.Talos.SchematicID != "" {
 			fmt.Printf("  %-20s %s\n", "Schematic ID:", v.Profiles.Talos.SchematicID)
 		}
+	case "alma":
+		fmt.Printf("  %-20s %s\n", "AlmaLinux:", v.Profiles.Alma.Version)
 	default:
 		fmt.Printf("  %-20s %s\n", "Ubuntu:", v.Profiles.Ubuntu.Version)
 	}

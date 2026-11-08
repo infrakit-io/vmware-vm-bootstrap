@@ -1,0 +1,45 @@
+Source: https://raw.githubusercontent.com/rhinstaller/anaconda/main/dracut/kickstart-genrules.sh (OEMDRV: lines 28-38)
+Fetched: 2026-11-08. Content below is verbatim.
+
+#!/bin/sh
+# generate udev rules for fetching kickstarts.
+
+. /lib/anaconda-lib.sh
+
+case "${kickstart%%:*}" in
+    http|https|ftp|nfs|urls)
+        # handled by fetch-kickstart-net in the online hook
+        wait_for_kickstart
+    ;;
+    cdrom|hd) # cdrom, cdrom:<path>, hd:<dev>:<path>
+        splitsep ":" "$kickstart" kstype ksdev kspath
+        if [ "$kstype" = "cdrom" ] && [ -z "$kspath" ]; then
+            kspath="$ksdev"
+            when_any_cdrom_appears autocd \
+                fetch-kickstart-disk "\$env{DEVNAME}" "$kspath"
+        else
+            ksdev=$(disk_to_dev_path "$ksdev")
+            when_diskdev_appears "$ksdev" fetch-kickstart-disk \
+                fetch-kickstart-disk "\$env{DEVNAME}" "$kspath"
+        fi
+        # "cdrom:" also means "wait forever for kickstart" because rhbz#1168902
+        if [ "$kstype" = "cdrom" ]; then
+            # if we reset main_loop to 0 every loop, we never hit the timeout.
+            # (see dracut's dracut-initqueue.sh for details on the mainloop)
+            #
+            # Stop this behavior when kickstart is already processed otherwise we
+            # will get into infinite loop in Dracut because of 5 sec wait for OEMDRV
+            # feature.
+            # See rbhz#2209599 for more info
+            echo "[ -e /tmp/ks.cfg.done ] || main_loop=0" > "$hookdir/initqueue/ks-cdrom-wait-forever.sh"
+        fi
+        wait_for_kickstart
+    ;;
+    "")
+        if [ -z "$kickstart" ] && [ -z "$(getarg inst.ks=)" ]; then
+            when_diskdev_appears "$(disk_to_dev_path LABEL=OEMDRV)" fetch-kickstart-disk \
+                fetch-kickstart-disk "\$env{DEVNAME}" "/ks.cfg"
+            wait_for_disks
+        fi
+    ;;
+esac

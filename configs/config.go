@@ -15,6 +15,9 @@ var defaultsYAML []byte
 //go:embed ubuntu-releases.yaml
 var releasesYAML []byte
 
+//go:embed alma-releases.yaml
+var almaReleasesYAML []byte
+
 //go:embed talos-releases.yaml
 var talosReleasesYAML []byte
 
@@ -26,6 +29,9 @@ var Defaults LibDefaults
 
 // UbuntuReleases holds Ubuntu release download info (loaded from ubuntu-releases.yaml).
 var UbuntuReleases ReleasesConfig
+
+// AlmaReleases holds AlmaLinux ISO + install-tree info (loaded from alma-releases.yaml).
+var AlmaReleases AlmaReleasesConfig
 
 // TalosReleases holds Talos versions for wizard selection (loaded from talos-releases.yaml).
 var TalosReleases TalosReleasesConfig
@@ -40,6 +46,9 @@ func init() {
 	applyBuiltinFallbacks(&Defaults)
 	if err := yaml.Unmarshal(releasesYAML, &UbuntuReleases); err != nil {
 		panic("vmware-vm-bootstrap: invalid ubuntu-releases.yaml: " + err.Error())
+	}
+	if err := yaml.Unmarshal(almaReleasesYAML, &AlmaReleases); err != nil {
+		panic("vmware-vm-bootstrap: invalid alma-releases.yaml: " + err.Error())
 	}
 	if err := yaml.Unmarshal(talosReleasesYAML, &TalosReleases); err != nil {
 		panic("vmware-vm-bootstrap: invalid talos-releases.yaml: " + err.Error())
@@ -110,6 +119,7 @@ type LibDefaults struct {
 	VM        VMDefaults        `yaml:"vm"`
 	Network   NetworkDefaults   `yaml:"network"`
 	Talos     TalosDefaults     `yaml:"talos"`
+	Alma      AlmaDefaults      `yaml:"alma"`
 	CloudInit CloudInitDefaults `yaml:"cloudinit"`
 	Timeouts  TimeoutDefaults   `yaml:"timeouts"`
 	ISO       ISODefaults       `yaml:"iso"`
@@ -125,6 +135,15 @@ type VCenterDefaults struct {
 type VMDefaults struct {
 	Firmware string `yaml:"firmware"`
 	GuestOS  string `yaml:"guest_os"`
+}
+
+// AlmaDefaults holds AlmaLinux profile defaults.
+type AlmaDefaults struct {
+	GuestOS    string   `yaml:"guest_os"`   // vSphere guest ID for EL9
+	Filesystem string   `yaml:"filesystem"` // ext4 or xfs for /boot, / and the data disk
+	BootSizeMB int      `yaml:"boot_size_mb"`
+	Packages   []string `yaml:"packages"` // installed on top of @^minimal-environment
+	UserGroups string   `yaml:"user_groups"`
 }
 
 // NetworkDefaults holds network configuration defaults.
@@ -229,6 +248,8 @@ type ISODefaults struct {
 	UbuntuModifiedSuffix string `yaml:"ubuntu_modified_suffix"`
 	ExtractDirName       string `yaml:"extract_dir_name"`
 	UbuntuVolumeID       string `yaml:"ubuntu_volume_id"`
+	OEMDRVVolumeID       string `yaml:"oemdrv_volume_id"`
+	AlmaModifiedSuffix   string `yaml:"alma_modified_suffix"`
 }
 
 // OutputDefaults holds CLI output defaults.
@@ -241,6 +262,19 @@ type OutputDefaults struct {
 type UbuntuRelease struct {
 	URL      string `yaml:"url"`
 	Checksum string `yaml:"checksum"`
+}
+
+// AlmaRelease holds the boot ISO and install trees for one AlmaLinux point release.
+type AlmaRelease struct {
+	URL          string `yaml:"url"`
+	Checksum     string `yaml:"checksum"`
+	BaseOSURL    string `yaml:"baseos_url"`
+	AppStreamURL string `yaml:"appstream_url"`
+}
+
+// AlmaReleasesConfig holds all known AlmaLinux releases.
+type AlmaReleasesConfig struct {
+	Releases map[string]AlmaRelease `yaml:"releases"`
 }
 
 // ReleasesConfig holds all known Ubuntu releases.

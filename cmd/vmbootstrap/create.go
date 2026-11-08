@@ -55,6 +55,9 @@ type vmFileConfig struct {
 			Ubuntu struct {
 				Version string `yaml:"version,omitempty"`
 			} `yaml:"ubuntu,omitempty"`
+			Alma struct {
+				Version string `yaml:"version,omitempty"`
+			} `yaml:"alma,omitempty"`
 			Talos struct {
 				Version     string `yaml:"version,omitempty"`
 				SchematicID string `yaml:"schematic_id,omitempty"`
@@ -120,9 +123,9 @@ func buildVMConfig(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, resultPath st
 
 	printConfigWarnings(profile, v.DataDiskSizeGB, v.DataDiskMountPath, v.SwapSizeGB, v.SSHKeyPath, v.SSHKey, v.Password, v.SSHPort)
 
-	// Load SSH key (required only for ubuntu profile).
+	// Load SSH key (required for the ubuntu and alma profiles).
 	var sshKey string
-	if profile == "ubuntu" {
+	if profile == "ubuntu" || profile == "alma" {
 		if v.SSHKeyPath != "" {
 			data, err := os.ReadFile(v.SSHKeyPath)
 			if err != nil {
@@ -132,7 +135,7 @@ func buildVMConfig(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, resultPath st
 		} else if v.SSHKey != "" {
 			sshKey = v.SSHKey
 		} else {
-			return nil, fmt.Errorf("either vm.ssh_key or vm.ssh_key_path is required for ubuntu profile")
+			return nil, fmt.Errorf("either vm.ssh_key or vm.ssh_key_path is required for %s profile", profile)
 		}
 	}
 
@@ -164,13 +167,14 @@ func buildVMConfig(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, resultPath st
 		ContentLibrary:   vcCfg.VCenter.ContentLibrary,
 		ContentLibraryID: vcCfg.VCenter.ContentLibraryID,
 	}
-	if profile == "ubuntu" {
+	if profile == "ubuntu" || profile == "alma" {
 		cfg.Username = v.Username
 		cfg.SSHPublicKeys = []string{sshKey}
 		cfg.Password = v.Password
 		cfg.AllowPasswordSSH = v.AllowPasswordSSH
 	}
 	cfg.Profiles.Ubuntu.Version = v.Profiles.Ubuntu.Version
+	cfg.Profiles.Alma.Version = v.Profiles.Alma.Version
 	cfg.Profiles.Talos.Version = v.Profiles.Talos.Version
 	cfg.Profiles.Talos.SchematicID = v.Profiles.Talos.SchematicID
 	applyVMExtras(cfg, v.DataDiskDatastore, v.CPUHotAdd, v.MemoryHotAdd, v.ExtraNICs, v.Tags)
@@ -328,12 +332,12 @@ func bootstrapVM(vmConfigPath string, resultPath string) error {
 	fmt.Printf("  Name:      %s\n", vm.Name)
 	fmt.Printf("  IP:        %s\n", vm.IPAddress)
 	fmt.Printf("  SSH ready: %v\n", vm.SSHReady)
-	if profile == "ubuntu" && cfg.Username != "" {
+	if profile != "talos" && cfg.Username != "" {
 		fmt.Printf("\n  Connect: \033[36mssh %s@%s\033[0m\n\n", cfg.Username, vm.IPAddress)
 	}
 
 	if resultPath != "" {
-		if profile == "ubuntu" {
+		if profile != "talos" {
 			if err := writeBootstrapResult(resultPath, cfg, v.SSHKeyPath, v.SSHPort, vm); err != nil {
 				return err
 			}

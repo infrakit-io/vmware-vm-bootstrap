@@ -28,8 +28,8 @@ type VMConfig struct {
 	DiskSizeGB           int      // OS disk size in GB (e.g., 40)
 	DataDiskSizeGB       *int     // Optional data disk size in GB (e.g., 500) - nil = not created
 	DataDiskMountPath    string   // Mount point for data disk (e.g., "/data") - required if DataDiskSizeGB set
-	RootMountOptions     []string // Optional mount options for / (ubuntu only), e.g. usrquota,grpquota
-	DataDiskMountOptions []string // Optional mount options for the data disk (ubuntu only)
+	RootMountOptions     []string // Optional mount options for / (ubuntu, alma), e.g. usrquota,grpquota
+	DataDiskMountOptions []string // Optional mount options for the data disk (ubuntu, alma)
 	DataDiskDatastore    string   // Optional datastore for the data disk - empty = same as Datastore
 	CPUHotAdd            *bool    // Optional CPU hot-add - nil = vCenter default
 	MemoryHotAdd         *bool    // Optional memory hot-add - nil = vCenter default
@@ -102,7 +102,13 @@ type Tag struct {
 // VMProfiles contains profile-specific settings.
 type VMProfiles struct {
 	Ubuntu UbuntuProfile
+	Alma   AlmaProfile
 	Talos  TalosProfile
+}
+
+// AlmaProfile contains AlmaLinux-specific settings for profile mode.
+type AlmaProfile struct {
+	Version string // minor release pinned in configs/alma-releases.yaml, e.g. "9.8"
 }
 
 // UbuntuProfile contains Ubuntu-specific settings for profile mode.
@@ -148,10 +154,10 @@ func (cfg *VMConfig) Validate() error {
 		return fmt.Errorf("name is required")
 	}
 	profile := cfg.effectiveProfile()
-	if profile != "ubuntu" && profile != "talos" {
-		return fmt.Errorf("unsupported Profile %q (supported: ubuntu, talos)", profile)
+	if profile != "ubuntu" && profile != "alma" && profile != "talos" {
+		return fmt.Errorf("unsupported Profile %q (supported: ubuntu, alma, talos)", profile)
 	}
-	if profile == "ubuntu" {
+	if profile == "ubuntu" || profile == "alma" {
 		if cfg.Username == "" {
 			return fmt.Errorf("username is required")
 		}
@@ -194,6 +200,17 @@ func (cfg *VMConfig) Validate() error {
 	}
 	if profile == "ubuntu" && cfg.effectiveUbuntuVersion() == "" {
 		return fmt.Errorf("Profiles.Ubuntu.Version is required for ubuntu profile")
+	}
+	if profile == "alma" {
+		if cfg.effectiveAlmaVersion() == "" {
+			return fmt.Errorf("Profiles.Alma.Version is required for alma profile")
+		}
+		if _, ok := configs.AlmaReleases.Releases[cfg.effectiveAlmaVersion()]; !ok {
+			return fmt.Errorf("unsupported AlmaLinux version %q (see configs/alma-releases.yaml)", cfg.effectiveAlmaVersion())
+		}
+		if fw := cfg.Firmware; fw != "" && fw != "bios" {
+			return fmt.Errorf("alma profile supports only Firmware \"bios\" (got %q)", fw)
+		}
 	}
 	if profile == "talos" && cfg.effectiveTalosVersion() == "" {
 		return fmt.Errorf("Profiles.Talos.Version is required for talos profile")
@@ -291,6 +308,11 @@ func (cfg *VMConfig) EffectiveUbuntuVersion() string {
 
 func (cfg *VMConfig) effectiveUbuntuVersion() string { return cfg.Profiles.Ubuntu.Version }
 
+// EffectiveAlmaVersion returns AlmaLinux version from profile config.
+func (cfg *VMConfig) EffectiveAlmaVersion() string { return cfg.effectiveAlmaVersion() }
+
+func (cfg *VMConfig) effectiveAlmaVersion() string { return cfg.Profiles.Alma.Version }
+
 // EffectiveTalosVersion returns Talos version from profile config.
 func (cfg *VMConfig) EffectiveTalosVersion() string {
 	return cfg.effectiveTalosVersion()
@@ -305,6 +327,8 @@ func (cfg *VMConfig) EffectiveOSVersion() string {
 	switch cfg.effectiveProfile() {
 	case "talos":
 		return cfg.effectiveTalosVersion()
+	case "alma":
+		return cfg.effectiveAlmaVersion()
 	default:
 		return cfg.effectiveUbuntuVersion()
 	}

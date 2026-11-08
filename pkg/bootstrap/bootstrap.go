@@ -11,6 +11,7 @@ import (
 	"github.com/infrakit-io/vmware-vm-bootstrap/internal/utils"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/iso"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile"
+	almaprofile "github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile/alma"
 	talosprofile "github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile/talos"
 	ubuntuprofile "github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile/ubuntu"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/vcenter"
@@ -48,7 +49,9 @@ type bootstrapper struct {
 	newISOManager  func(ctx context.Context) iso.ManagerInterface
 	resolveProfile func(profileName string) (profile.Provisioner, error)
 	waitInstall    func(ctx context.Context, vmObj *object.VirtualMachine, cfg *VMConfig, logger *slog.Logger) error
-	checkSSH       func(ctx context.Context, ipAddr string) error
+	// waitPowerOff waits for the unattended installer to power the VM off (alma profile).
+	waitPowerOff func(ctx context.Context, vmObj *object.VirtualMachine, logger *slog.Logger) error
+	checkSSH     func(ctx context.Context, ipAddr string) error
 }
 
 // defaultBootstrapper returns a bootstrapper with real production implementations.
@@ -73,13 +76,17 @@ func defaultBootstrapper() *bootstrapper {
 			if profileName == "" || profileName == "ubuntu" {
 				return ubuntuprofile.New(), nil
 			}
+			if profileName == "alma" {
+				return almaprofile.New(), nil
+			}
 			if profileName == "talos" {
 				return talosprofile.New(), nil
 			}
 			return nil, fmt.Errorf("unsupported profile %q", profileName)
 		},
-		waitInstall: waitForInstallation,
-		checkSSH:    verifySSHAccess,
+		waitInstall:  waitForInstallation,
+		waitPowerOff: waitForPowerOff,
+		checkSSH:     verifySSHAccess,
 	}
 }
 
@@ -225,6 +232,9 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		CPUHotAdd:    cfg.CPUHotAdd,
 		MemoryHotAdd: cfg.MemoryHotAdd,
 	}
+	if cfg.EffectiveProfile() == "alma" {
+		vmConfig.GuestOS = configs.Defaults.Alma.GuestOS
+	}
 
 	if cfg.DataDiskSizeGB != nil {
 		size := int64(*cfg.DataDiskSizeGB)
@@ -345,6 +355,7 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		Timezone:             cfg.Timezone,
 		Locale:               cfg.Locale,
 		NetworkInterface:     cfg.NetworkInterface,
+		MACAddress:           assignedMAC,
 		IPAddress:            cfg.IPAddress,
 		Netmask:              cfg.Netmask,
 		Gateway:              cfg.Gateway,
@@ -374,12 +385,19 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		return nil, err
 	}
 
-	// STEP 16: Wait for installation for profiles that use Ubuntu autoinstall flow.
-	if cfg.EffectiveProfile() == "ubuntu" {
+	// STEP 16: Wait for installation for profiles that use an unattended installer.
+	// ubuntu: autoinstall reboots into the installed system; alma: the kickstart powers the VM off.
+	switch cfg.EffectiveProfile() {
+	case "ubuntu":
 		if err := b.waitInstall(ctx, createdVM, cfg, logger); err != nil {
 			return nil, fmt.Errorf("installation failed: %w", err)
 		}
 		logger.Info("Installation complete")
+	case "alma":
+		if err := b.waitPowerOff(ctx, createdVM, logger); err != nil {
+			return nil, fmt.Errorf("installation failed: %w", err)
+		}
+		logger.Info("Kickstart installation finished (VM powered off)")
 	}
 
 	// STEP 16.5: Profile post-install actions
@@ -393,6 +411,7 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		Timezone:             cfg.Timezone,
 		Locale:               cfg.Locale,
 		NetworkInterface:     cfg.NetworkInterface,
+		MACAddress:           assignedMAC,
 		IPAddress:            cfg.IPAddress,
 		Netmask:              cfg.Netmask,
 		Gateway:              cfg.Gateway,
@@ -419,8 +438,17 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		return nil, err
 	}
 
-	// STEP 17: Verify SSH access for Ubuntu profile.
-	skipSSHVerify := cfg.SkipSSHVerify || cfg.EffectiveProfile() != "ubuntu"
+	// STEP 16.6 (alma): PostInstall powered the VM on from the installed disk;
+	// wait for VMware Tools + the configured hostname (first boot of the new system).
+	if cfg.EffectiveProfile() == "alma" {
+		if err := b.waitInstall(ctx, createdVM, cfg, logger); err != nil {
+			return nil, fmt.Errorf("first boot after install failed: %w", err)
+		}
+		logger.Info("First boot complete")
+	}
+
+	// STEP 17: Verify SSH access (every profile except talos).
+	skipSSHVerify := cfg.SkipSSHVerify || cfg.EffectiveProfile() == "talos"
 	if skipSSHVerify {
 		logger.Warn("Skipping SSH verification", "profile", cfg.EffectiveProfile(), "skip_ssh_verify", cfg.SkipSSHVerify)
 	} else {
@@ -774,6 +802,36 @@ func waitForInstallation(ctx context.Context, vmObj *object.VirtualMachine, cfg 
 			} else if !rebootDetected && toolsRunning && hostname != cfg.Name {
 				hostnameCheckCount = 0
 			}
+		}
+	}
+}
+
+// waitForPowerOff polls until the VM is powered off (kickstart `poweroff`) or the
+// installation timeout expires.
+func waitForPowerOff(ctx context.Context, vmObj *object.VirtualMachine, logger *slog.Logger) error {
+	timeout := configs.Defaults.Timeouts.Installation()
+	ticker := time.NewTicker(configs.Defaults.Timeouts.Polling())
+	defer ticker.Stop()
+	started := time.Now()
+	deadline := started.Add(timeout)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return fmt.Errorf("installation timeout (%v): VM never powered off", timeout)
+			}
+			state, err := vmObj.PowerState(ctx)
+			if err != nil {
+				continue
+			}
+			if state == types.VirtualMachinePowerStatePoweredOff {
+				return nil
+			}
+			logger.Info("Installation progress", "phase", "kickstart-running",
+				"elapsed", time.Since(started).Truncate(time.Second),
+				"remaining_timeout", time.Until(deadline).Truncate(time.Second))
 		}
 	}
 }

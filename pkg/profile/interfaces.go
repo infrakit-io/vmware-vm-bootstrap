@@ -20,6 +20,7 @@ type Input struct {
 	Timezone             string
 	Locale               string
 	NetworkInterface     string
+	MACAddress           string // primary NIC MAC (static or auto-assigned); used by the alma kickstart
 	IPAddress            string
 	Netmask              string
 	Gateway              string
@@ -61,6 +62,8 @@ type Runtime struct {
 
 // Result carries profile-specific artifacts needed by bootstrap core.
 type Result struct {
+	// NoCloudUploadPath is the datastore path of the per-VM config ISO (NoCloud seed
+	// for ubuntu, OEMDRV kickstart for alma); bootstrap deletes it after install/failure.
 	NoCloudUploadPath string
 }
 

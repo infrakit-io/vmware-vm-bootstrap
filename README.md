@@ -6,13 +6,13 @@
 ![Go Version](https://img.shields.io/github/go-mod/go-version/infrakit-io/vmware-vm-bootstrap)
 ![Release](https://img.shields.io/github/v/release/infrakit-io/vmware-vm-bootstrap)
 
-**Go library for automated VM lifecycle in VMware vSphere (profile-driven: Ubuntu/Talos).**
+**Go library for automated VM lifecycle in VMware vSphere (profile-driven: Ubuntu/AlmaLinux/Talos).**
 
 ## Features
 
 - Core library in Go (ISO tooling still uses system binaries)
 - VMware vSphere 7.0+ support
-- OS profile model: Ubuntu and Talos
+- OS profile model: Ubuntu, AlmaLinux 9 (kickstart) and Talos
 - Node lifecycle operations: create/delete/recreate/update
 - Cloud-init configuration (network, users, SSH keys)
 - Password hashing (bcrypt; SHA-512 planned)
@@ -211,6 +211,7 @@ Library:
 - Go 1.26+
 - VMware vCenter 7.0+
 - Ubuntu 22.04, 24.04 or 26.04 Server ISO (downloaded automatically and verified against the SHA256 pinned in `configs/ubuntu-releases.yaml`)
+- Or AlmaLinux 9 boot ISO (profile `alma`; downloaded automatically and verified against the SHA256 pinned in `configs/alma-releases.yaml`)
 
 CLI (in addition to library requirements):
 - `govc` (vSphere CLI)
@@ -268,7 +269,7 @@ git push origin v0.1.0
 
 See [pkg.go.dev](https://pkg.go.dev/github.com/infrakit-io/vmware-vm-bootstrap) for full API documentation.
 
-Ubuntu support matrix: see [docs/UBUNTU_SUPPORT.md](docs/UBUNTU_SUPPORT.md).
+Ubuntu support matrix: see [docs/UBUNTU_SUPPORT.md](docs/UBUNTU_SUPPORT.md). AlmaLinux: [docs/ALMA_SUPPORT.md](docs/ALMA_SUPPORT.md).
 
 ## Changelog
 

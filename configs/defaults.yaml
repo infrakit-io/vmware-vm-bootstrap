@@ -34,6 +34,15 @@ talos:
     controlplane_count: 3
     worker_count: 2
 
+alma:
+  guest_os: rhel9_64Guest   # vSphere >= 7.0 U2; almalinux_64Guest needs vSphere 8.0+
+  filesystem: ext4          # keeps the shared mount-option allow-list valid
+  boot_size_mb: 1024
+  packages:                 # on top of @^minimal-environment
+    - open-vm-tools
+    - sudo
+  user_groups: wheel
+
 cloudinit:
   locale: en_US.UTF-8
   timezone: UTC
@@ -64,6 +73,8 @@ iso:
   ubuntu_modified_suffix: -autoinstall  # Suffix added to modified Ubuntu ISO filename
   extract_dir_name: ubuntu-extracted    # Temp directory name for ISO extraction
   ubuntu_volume_id: Ubuntu-AI           # Volume ID for repacked Ubuntu ISO
+  oemdrv_volume_id: OEMDRV              # Volume label Anaconda auto-loads ks.cfg from (must be uppercase)
+  alma_modified_suffix: -unattended     # Suffix added to the patched AlmaLinux boot ISO filename
 
 output:
   enable: true

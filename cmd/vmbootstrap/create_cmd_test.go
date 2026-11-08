@@ -183,3 +183,37 @@ func TestCreateCmd_InterruptCancelsRunAndFails(t *testing.T) {
 	require.Contains(t, out.String(), "Interrupted")
 	require.Contains(t, out.String(), "VM kept (powered off)")
 }
+
+func TestCreateCmd_DryRunAlmaPlan(t *testing.T) {
+	vc, _, cleanup := simCreateEnv(t)
+	defer cleanup()
+	f := vmFileFor(t, "da-alma-01")
+	f.VM.Profile = "alma"
+	f.VM.Username = "root"
+	f.VM.DataDiskMountPath = "/home"
+	f.VM.DataDiskDatastore = ""
+	f.VM.SwapSizeGB = 4
+	f.VM.ExtraNICs = nil
+	f.VM.Profiles.Ubuntu.Version = ""
+	f.VM.Profiles.Alma.Version = "9.8"
+	var out bytes.Buffer
+	runs, confirms := 0, 0
+	require.NoError(t, runCreate(vc, f, createOptions{DryRun: true}, testDeps(&out, &runs, &confirms)))
+	require.Zero(t, runs)
+	for _, want := range []string{"alma 9.8", "kickstart (OEMDRV CD-ROM)", "rhel9_64Guest", "mount /home", "Swap:       4 GB", "[dry-run] nothing was created."} {
+		require.Contains(t, out.String(), want)
+	}
+}
+
+func TestCreateCmd_AlmaRejectsBadVersion(t *testing.T) {
+	vc, _, cleanup := simCreateEnv(t)
+	defer cleanup()
+	f := vmFileFor(t, "da-alma-02")
+	f.VM.Profile = "alma"
+	f.VM.ExtraNICs = nil
+	f.VM.Profiles.Alma.Version = "9.1"
+	var out bytes.Buffer
+	runs, confirms := 0, 0
+	err := runCreate(vc, f, createOptions{DryRun: true}, testDeps(&out, &runs, &confirms))
+	require.ErrorContains(t, err, "unsupported AlmaLinux version")
+}

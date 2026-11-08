@@ -10,6 +10,8 @@ vm:
   profiles:
     ubuntu:
       version: "24.04"
+    # alma:                       # also set profile: "alma" (BIOS firmware, one NIC; see docs/ALMA_SUPPORT.md)
+    #   version: "9.8"
     # talos:
     #   version: "v1.12.0"
     #   schematic_id: "REQUIRED: image factory schematic id for vmware (e.g. with vmtoolsd)"

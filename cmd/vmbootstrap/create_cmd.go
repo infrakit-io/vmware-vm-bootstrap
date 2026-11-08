@@ -157,6 +157,11 @@ func printCreatePlan(w io.Writer, cfg *bootstrap.VMConfig) {
 	fmt.Fprintf(w, "Plan for %s\n", cfg.Name)
 	fmt.Fprintf(w, "  vCenter:    %s (datacenter %s)\n", cfg.VCenterHost, cfg.Datacenter)
 	fmt.Fprintf(w, "  Profile/OS: %s %s\n", cfg.EffectiveProfile(), cfg.EffectiveOSVersion())
+	if cfg.EffectiveProfile() == "alma" {
+		if r, ok := configs.AlmaReleases.Releases[cfg.EffectiveAlmaVersion()]; ok {
+			fmt.Fprintf(w, "  Install:    kickstart (OEMDRV CD-ROM), guest %s, packages from %s\n", configs.Defaults.Alma.GuestOS, r.BaseOSURL)
+		}
+	}
 	fmt.Fprintf(w, "  Folder:     %s\n", cfg.Folder)
 	fmt.Fprintf(w, "  Pool:       %s\n", cfg.ResourcePool)
 	fmt.Fprintf(w, "  CPU/RAM:    %d vCPU / %d MB (hot-add cpu=%s mem=%s)\n", cfg.CPUs, cfg.MemoryMB, boolPtrStr(cfg.CPUHotAdd), boolPtrStr(cfg.MemoryHotAdd))
