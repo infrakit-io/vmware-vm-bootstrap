@@ -160,6 +160,7 @@ func printCreatePlan(w io.Writer, cfg *bootstrap.VMConfig) {
 	if cfg.EffectiveProfile() == "alma" {
 		if r, ok := configs.AlmaReleases.Releases[cfg.EffectiveAlmaVersion()]; ok {
 			fmt.Fprintf(w, "  Install:    kickstart (OEMDRV CD-ROM), guest %s, packages from %s\n", configs.Defaults.Alma.GuestOS, r.BaseOSURL)
+			fmt.Fprintf(w, "  SELinux:    %s\n", cfg.EffectiveAlmaSELinux())
 		}
 	}
 	fmt.Fprintf(w, "  Folder:     %s\n", cfg.Folder)

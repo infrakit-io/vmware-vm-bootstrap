@@ -58,6 +58,7 @@ type vmFileConfig struct {
 			} `yaml:"ubuntu,omitempty"`
 			Alma struct {
 				Version string `yaml:"version,omitempty"`
+				SELinux string `yaml:"selinux,omitempty"`
 			} `yaml:"alma,omitempty"`
 			Talos struct {
 				Version     string `yaml:"version,omitempty"`
@@ -177,6 +178,7 @@ func buildVMConfig(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, resultPath st
 	}
 	cfg.Profiles.Ubuntu.Version = v.Profiles.Ubuntu.Version
 	cfg.Profiles.Alma.Version = v.Profiles.Alma.Version
+	cfg.Profiles.Alma.SELinux = v.Profiles.Alma.SELinux
 	cfg.Profiles.Talos.Version = v.Profiles.Talos.Version
 	cfg.Profiles.Talos.SchematicID = v.Profiles.Talos.SchematicID
 	applyVMExtras(cfg, v.DataDiskDatastore, v.CPUHotAdd, v.MemoryHotAdd, v.ExtraNICs, v.Tags)

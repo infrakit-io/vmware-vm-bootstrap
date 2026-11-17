@@ -367,6 +367,7 @@ func (b *bootstrapper) run(ctx context.Context, cfg *VMConfig, logger *slog.Logg
 		DataDiskMountOptions: cfg.DataDiskMountOptions,
 		SwapSizeGB:           cfg.SwapSizeGB,
 		OSVersion:            cfg.EffectiveOSVersion(),
+		AlmaSELinux:          cfg.EffectiveAlmaSELinux(),
 		OSSchematicID:        cfg.EffectiveOSSchematicID(),
 		VCenterHost:          cfg.VCenterHost,
 		VCenterUsername:      cfg.VCenterUsername,

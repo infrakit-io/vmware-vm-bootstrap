@@ -94,6 +94,7 @@ func BuildKickstart(in profile.Input) (string, error) {
 		SwapSizeGB:           swapGB,
 		Packages:             d.Packages,
 		UserGroups:           d.UserGroups,
+		SELinux:              in.AlmaSELinux,
 		BaseOSURL:            release.BaseOSURL,
 		AppStreamURL:         release.AppStreamURL,
 	})

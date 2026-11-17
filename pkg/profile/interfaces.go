@@ -31,6 +31,7 @@ type Input struct {
 	DataDiskMountOptions []string
 	SwapSizeGB           *int
 	OSVersion            string
+	AlmaSELinux          string // alma only: enforcing|permissive|disabled; empty = configs default
 	OSSchematicID        string
 
 	VCenterHost     string

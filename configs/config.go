@@ -144,6 +144,7 @@ type AlmaDefaults struct {
 	BootSizeMB int      `yaml:"boot_size_mb"`
 	Packages   []string `yaml:"packages"` // installed on top of @^minimal-environment
 	UserGroups string   `yaml:"user_groups"`
+	SELinux    string   `yaml:"selinux"` // enforcing, permissive or disabled; per-VM override: profiles.alma.selinux
 }
 
 // NetworkDefaults holds network configuration defaults.

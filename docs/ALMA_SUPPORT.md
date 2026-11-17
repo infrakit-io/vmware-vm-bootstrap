@@ -6,6 +6,7 @@ Profile `alma` installs AlmaLinux 9 unattended with an Anaconda **kickstart**.
 - BIOS firmware only (the boot-menu patch covers `isolinux`; UEFI is rejected by validation).
 - Single NIC (`extra_nics` is rejected). Disk layout: `sda` = `/boot` + optional swap + `/`, `sdb` = data disk at `data_disk_mount_path`; ext4 (`configs/defaults.yaml: alma.filesystem`). `root_mount_options` / `data_disk_mount_options` become `part --fsoptions`.
 - Login: `username: root` locks the root password and installs the SSH key for root; any other username creates that user (group `wheel`, NOPASSWD sudo) and locks root. A password (bcrypt hash) is set only if given (default: locked, SSH key only; under FIPS mode a bcrypt hash is rejected); `allow_password_ssh` toggles `PasswordAuthentication` (and `rootpw --allow-ssh` for root).
+- SELinux: kickstart `selinux --<mode>`; per-VM `profiles.alma.selinux: enforcing|permissive|disabled` (default `enforcing` from `configs/defaults.yaml: alma.selinux`; invalid values are rejected). Use `disabled` for DirectAdmin hosts (DA's own `scripts/selinux.sh` disables it). The firewall stays `--enabled` (firewalld) in the kickstart.
 - Firmware is written into the VM spec explicitly as BIOS for this profile (rhel9_64Guest may default to EFI on vSphere 8, where the patched isolinux menu is never used).
 - Disks are addressed as `sda` (OS) and `sdb` (data) in the kickstart. The kickstart reference only documents
   stable names as `/dev/disk/by-id` for `part --onpart`/`--ondisk` and `/dev/disk/by-path` globs for `clearpart`/`ignoredisk`

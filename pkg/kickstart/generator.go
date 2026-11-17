@@ -49,8 +49,14 @@ type AlmaInput struct {
 
 	Packages     []string
 	UserGroups   string
+	SELinux      string // enforcing (default when empty), permissive or disabled
 	BaseOSURL    string
 	AppStreamURL string
+}
+
+// ValidSELinuxMode reports whether m is a kickstart `selinux` mode.
+func ValidSELinuxMode(m string) bool {
+	return m == "enforcing" || m == "permissive" || m == "disabled"
 }
 
 // GenerateAlma renders the kickstart file. Every value that reaches the file is
@@ -58,6 +64,9 @@ type AlmaInput struct {
 func GenerateAlma(in *AlmaInput) (string, error) {
 	if err := validate(in); err != nil {
 		return "", err
+	}
+	if in.SELinux == "" {
+		in.SELinux = "enforcing"
 	}
 	isRoot := in.Username == "root"
 	hash := in.PasswordHash
@@ -124,6 +133,9 @@ func validate(in *AlmaInput) error {
 	}
 	if !fsRe.MatchString(in.Filesystem) {
 		return fmt.Errorf("unsupported filesystem %q (ext4 or xfs)", in.Filesystem)
+	}
+	if !ValidSELinuxMode(in.SELinux) && in.SELinux != "" {
+		return fmt.Errorf("invalid selinux mode %q (enforcing, permissive or disabled)", in.SELinux)
 	}
 	if in.BootSizeMB <= 0 {
 		return fmt.Errorf("boot size must be positive")

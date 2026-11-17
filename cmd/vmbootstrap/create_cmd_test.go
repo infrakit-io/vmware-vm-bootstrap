@@ -196,11 +196,12 @@ func TestCreateCmd_DryRunAlmaPlan(t *testing.T) {
 	f.VM.ExtraNICs = nil
 	f.VM.Profiles.Ubuntu.Version = ""
 	f.VM.Profiles.Alma.Version = "9.8"
+	f.VM.Profiles.Alma.SELinux = "disabled"
 	var out bytes.Buffer
 	runs, confirms := 0, 0
 	require.NoError(t, runCreate(vc, f, createOptions{DryRun: true}, testDeps(&out, &runs, &confirms)))
 	require.Zero(t, runs)
-	for _, want := range []string{"alma 9.8", "kickstart (OEMDRV CD-ROM)", "rhel9_64Guest", "mount /home", "Swap:       4 GB", "[dry-run] nothing was created."} {
+	for _, want := range []string{"alma 9.8", "SELinux:    disabled", "kickstart (OEMDRV CD-ROM)", "rhel9_64Guest", "mount /home", "Swap:       4 GB", "[dry-run] nothing was created."} {
 		require.Contains(t, out.String(), want)
 	}
 }
@@ -241,4 +242,10 @@ func TestCreateCmd_MACAddressRejectsBadFormat(t *testing.T) {
 	runs, confirms := 0, 0
 	err := runCreate(vc, f, createOptions{DryRun: true}, testDeps(&out, &runs, &confirms))
 	require.ErrorContains(t, err, "invalid MACAddress format")
+}
+
+func TestCreateCmd_VMFileParsesAlmaSELinux(t *testing.T) {
+	var f vmFileConfig
+	require.NoError(t, yaml.Unmarshal([]byte("vm:\n  profiles:\n    alma:\n      version: \"9.8\"\n      selinux: disabled\n"), &f))
+	require.Equal(t, "disabled", f.VM.Profiles.Alma.SELinux)
 }

@@ -43,6 +43,14 @@ func TestValidate_Alma(t *testing.T) {
 	assert.ErrorContains(t, cfg.Validate(), "unsupported AlmaLinux version")
 
 	cfg = almaConfig()
+	assert.Equal(t, "enforcing", cfg.EffectiveAlmaSELinux())
+	cfg.Profiles.Alma.SELinux = "disabled"
+	require.NoError(t, cfg.Validate())
+	assert.Equal(t, "disabled", cfg.EffectiveAlmaSELinux())
+	cfg.Profiles.Alma.SELinux = "off"
+	assert.ErrorContains(t, cfg.Validate(), "invalid Profiles.Alma.SELinux")
+
+	cfg = almaConfig()
 	cfg.Firmware = "efi"
 	assert.ErrorContains(t, cfg.Validate(), "only Firmware")
 

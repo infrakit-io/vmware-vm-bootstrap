@@ -50,6 +50,7 @@ func TestGenerateAlma_Golden(t *testing.T) {
 			in.Username = "deploy"
 			in.PasswordHash = "$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
 		},
+		"selinux-disabled": func(in *AlmaInput) { in.SELinux = "disabled" },
 		"root-password-ssh-on": func(in *AlmaInput) {
 			in.PasswordHash = "$2b$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
 			in.AllowPasswordSSH = true
@@ -121,6 +122,7 @@ func TestGenerateAlma_Validation(t *testing.T) {
 		"ssh key quote":       func(in *AlmaInput) { in.SSHPublicKeys = []string{`a" b`} },
 		"hash space":          func(in *AlmaInput) { in.PasswordHash = "a b" },
 		"no dns":              func(in *AlmaInput) { in.DNS = nil },
+		"selinux mode":        func(in *AlmaInput) { in.SELinux = "off\nreboot" },
 		"negative swap":       func(in *AlmaInput) { in.SwapSizeGB = -1 },
 		"url scheme":          func(in *AlmaInput) { in.BaseOSURL = "ftp://x" },
 		"device":              func(in *AlmaInput) { in.Device = "eth0 --foo" },
@@ -133,5 +135,19 @@ func TestGenerateAlma_Validation(t *testing.T) {
 				t.Fatal("expected validation error")
 			}
 		})
+	}
+}
+
+func TestGenerateAlma_SELinux(t *testing.T) {
+	for mode, want := range map[string]string{"": "selinux --enforcing", "enforcing": "selinux --enforcing", "permissive": "selinux --permissive", "disabled": "selinux --disabled"} {
+		in := baseInput()
+		in.SELinux = mode
+		ks, err := GenerateAlma(&in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(ks, want+"\n") || !strings.Contains(ks, "firewall --enabled --ssh") {
+			t.Errorf("mode %q: want %q and firewall enabled", mode, want)
+		}
 	}
 }

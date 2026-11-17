@@ -9,6 +9,7 @@ import (
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/infrakit-io/vmware-vm-bootstrap/internal/utils"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/cloudinit"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/kickstart"
 	"github.com/vmware/govmomi/vim25/types"
 )
 
@@ -109,6 +110,7 @@ type VMProfiles struct {
 // AlmaProfile contains AlmaLinux-specific settings for profile mode.
 type AlmaProfile struct {
 	Version string // minor release pinned in configs/alma-releases.yaml, e.g. "9.8"
+	SELinux string // enforcing|permissive|disabled; empty = configs/defaults.yaml alma.selinux
 }
 
 // UbuntuProfile contains Ubuntu-specific settings for profile mode.
@@ -207,6 +209,9 @@ func (cfg *VMConfig) Validate() error {
 		}
 		if _, ok := configs.AlmaReleases.Releases[cfg.effectiveAlmaVersion()]; !ok {
 			return fmt.Errorf("unsupported AlmaLinux version %q (see configs/alma-releases.yaml)", cfg.effectiveAlmaVersion())
+		}
+		if m := cfg.EffectiveAlmaSELinux(); !kickstart.ValidSELinuxMode(m) {
+			return fmt.Errorf("invalid Profiles.Alma.SELinux %q (enforcing, permissive or disabled)", m)
 		}
 		if fw := cfg.Firmware; fw != "" && fw != "bios" {
 			return fmt.Errorf("alma profile supports only Firmware \"bios\" (got %q)", fw)
@@ -312,6 +317,17 @@ func (cfg *VMConfig) effectiveUbuntuVersion() string { return cfg.Profiles.Ubunt
 func (cfg *VMConfig) EffectiveAlmaVersion() string { return cfg.effectiveAlmaVersion() }
 
 func (cfg *VMConfig) effectiveAlmaVersion() string { return cfg.Profiles.Alma.Version }
+
+// EffectiveAlmaSELinux returns the kickstart SELinux mode: per-VM value, else defaults.yaml, else enforcing.
+func (cfg *VMConfig) EffectiveAlmaSELinux() string {
+	if m := cfg.Profiles.Alma.SELinux; m != "" {
+		return m
+	}
+	if m := configs.Defaults.Alma.SELinux; m != "" {
+		return m
+	}
+	return "enforcing"
+}
 
 // EffectiveTalosVersion returns Talos version from profile config.
 func (cfg *VMConfig) EffectiveTalosVersion() string {

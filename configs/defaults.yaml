@@ -42,6 +42,7 @@ alma:
     - open-vm-tools
     - sudo
   user_groups: wheel
+  selinux: enforcing        # enforcing | permissive | disabled (per-VM: profiles.alma.selinux)
 
 cloudinit:
   locale: en_US.UTF-8

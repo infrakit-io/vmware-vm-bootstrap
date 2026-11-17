@@ -16,7 +16,7 @@ user --name={{ .Username }} --groups={{ .UserGroups }} {{ .UserAuth }}
 sshkey --username={{ $.Username }} "{{ . }}"
 {{- end }}
 firewall --enabled --ssh
-selinux --enforcing
+selinux --{{ .SELinux }}
 services --enabled=sshd,vmtoolsd
 firstboot --disable
 
