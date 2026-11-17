@@ -40,6 +40,7 @@ type vmFileConfig struct {
 		Password             string      `yaml:"password"`
 		SSHPort              int         `yaml:"ssh_port"`
 		AllowPasswordSSH     bool        `yaml:"allow_password_ssh"`
+		MACAddress           string      `yaml:"mac_address,omitempty"`
 		IPAddress            string      `yaml:"ip_address"`
 		Netmask              string      `yaml:"netmask"`
 		Gateway              string      `yaml:"gateway"`
@@ -154,6 +155,7 @@ func buildVMConfig(vcCfg *vcenterFileConfig, vmFile *vmFileConfig, resultPath st
 
 		NetworkName:      v.NetworkName,
 		NetworkInterface: v.NetworkInterface,
+		MACAddress:       strings.TrimSpace(v.MACAddress),
 		IPAddress:        v.IPAddress,
 		Netmask:          v.Netmask,
 		Gateway:          v.Gateway,

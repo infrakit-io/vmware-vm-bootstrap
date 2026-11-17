@@ -217,3 +217,28 @@ func TestCreateCmd_AlmaRejectsBadVersion(t *testing.T) {
 	err := runCreate(vc, f, createOptions{DryRun: true}, testDeps(&out, &runs, &confirms))
 	require.ErrorContains(t, err, "unsupported AlmaLinux version")
 }
+
+func TestCreateCmd_MACAddressInPlan(t *testing.T) {
+	vc, _, cleanup := simCreateEnv(t)
+	defer cleanup()
+	f := vmFileFor(t, "da-mac-01")
+	f.VM.MACAddress = " 00:50:56:83:AA:E9 "
+	built, err := buildVMConfig(vc, f, "")
+	require.NoError(t, err)
+	require.Equal(t, "00:50:56:83:AA:E9", built.cfg.MACAddress)
+	var out bytes.Buffer
+	runs, confirms := 0, 0
+	require.NoError(t, runCreate(vc, f, createOptions{DryRun: true}, testDeps(&out, &runs, &confirms)))
+	require.Contains(t, out.String(), "NIC 1 MAC:  00:50:56:83:aa:e9 (static)")
+}
+
+func TestCreateCmd_MACAddressRejectsBadFormat(t *testing.T) {
+	vc, _, cleanup := simCreateEnv(t)
+	defer cleanup()
+	f := vmFileFor(t, "da-mac-02")
+	f.VM.MACAddress = "00:50:56:83:aa"
+	var out bytes.Buffer
+	runs, confirms := 0, 0
+	err := runCreate(vc, f, createOptions{DryRun: true}, testDeps(&out, &runs, &confirms))
+	require.ErrorContains(t, err, "invalid MACAddress format")
+}

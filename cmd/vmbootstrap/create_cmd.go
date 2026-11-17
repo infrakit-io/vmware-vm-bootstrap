@@ -177,6 +177,9 @@ func printCreatePlan(w io.Writer, cfg *bootstrap.VMConfig) {
 		fmt.Fprintf(w, "  Swap:       %d GB\n", *cfg.SwapSizeGB)
 	}
 	fmt.Fprintf(w, "  NIC 1:      %s %s/%s gw %s (connected)\n", cfg.NetworkName, cfg.IPAddress, cfg.Netmask, cfg.Gateway)
+	if cfg.MACAddress != "" {
+		fmt.Fprintf(w, "  NIC 1 MAC:  %s (static)\n", strings.ToLower(cfg.MACAddress))
+	}
 	for i, n := range cfg.ExtraNICs {
 		state := "connected"
 		if !n.Connected {
