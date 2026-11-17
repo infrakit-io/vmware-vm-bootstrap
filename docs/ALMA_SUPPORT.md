@@ -2,7 +2,7 @@
 
 Profile `alma` installs AlmaLinux 9 unattended with an Anaconda **kickstart**.
 
-- Supported: **9.8** (exact minor pinned in `configs/alma-releases.yaml`; a new minor means a new entry).
+- Supported: **9.9** (current) and **9.8** (exact minor pinned in `configs/alma-releases.yaml`; a new minor means a new entry).
 - BIOS firmware only (the boot-menu patch covers `isolinux`; UEFI is rejected by validation).
 - Single NIC (`extra_nics` is rejected). Disk layout: `sda` = `/boot` + optional swap + `/`, `sdb` = data disk at `data_disk_mount_path`; ext4 (`configs/defaults.yaml: alma.filesystem`). `root_mount_options` / `data_disk_mount_options` become `part --fsoptions`.
 - Login: `username: root` locks the root password and installs the SSH key for root; any other username creates that user (group `wheel`, NOPASSWD sudo) and locks root. A password (bcrypt hash) is set only if given (default: locked, SSH key only; under FIPS mode a bcrypt hash is rejected); `allow_password_ssh` toggles `PasswordAuthentication` (and `rootpw --allow-ssh` for root).
@@ -31,7 +31,7 @@ Same rules as Ubuntu: the SHA256 in `configs/alma-releases.yaml` is mandatory. I
 PGP-signed `CHECKSUM` (saved as `docs/almalinux-official/CHECKSUM-9.8.txt`), verified against the AlmaLinux 9 key,
 fingerprint `BF18 AC28 7617 8908 D6E7 1267 D36C B86C B86B 3716`. The boot ISO only contains the
 installer; packages come from the pinned BaseOS/AppStream trees (when a newer minor ships, the old
-trees move to `vault.almalinux.org`).
+trees move to `vault.almalinux.org`). URLs are pinned to `/almalinux/<ver>/` (never the moving `/9/` alias); on HTTP 404 the ISO download and the kickstart tree URLs (HEAD-checked at provision time) fall back to the same `<ver>` path on `vault.almalinux.org`. 9.9 checksum: `docs/almalinux-official/CHECKSUM-9.9.txt`.
 
 Kickstart reference: `docs/almalinux-official/kickstart-docs.txt` (pykickstart). The RHEL 9 portal
 (docs.redhat.com) answers 403 to automated fetches, so it could not be saved verbatim.

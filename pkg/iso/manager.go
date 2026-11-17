@@ -182,7 +182,7 @@ func (m *Manager) downloadFile(url, destPath string) error {
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed: HTTP %d", resp.StatusCode)
+		return &HTTPStatusError{Code: resp.StatusCode}
 	}
 
 	// Get file size

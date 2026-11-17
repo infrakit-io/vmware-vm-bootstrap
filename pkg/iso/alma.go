@@ -39,7 +39,17 @@ func (m *Manager) DownloadAlma(version string) (string, error) {
 	if !sha256HexRe.MatchString(checksum) {
 		return "", fmt.Errorf("almalinux %s checksum %q in configs/alma-releases.yaml is not a SHA256 hex digest", version, checksum)
 	}
-	return m.fetchVerified(release.URL, strings.ToLower(checksum))
+	checksum = strings.ToLower(checksum)
+	path, err := m.fetchVerified(release.URL, checksum)
+	if err != nil && isHTTPNotFound(err) {
+		// The minor was superseded and moved to the vault. Same file, same pinned
+		// checksum: verification stays strict.
+		if vault, ok := vaultURLFn(release.URL); ok {
+			fmt.Printf("⚠️  %s returned 404; trying %s\n", release.URL, vault)
+			return m.fetchVerified(vault, checksum)
+		}
+	}
+	return path, err
 }
 
 // ModifyAlmaISO patches the BIOS boot menu so the installer starts unattended

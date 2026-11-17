@@ -93,9 +93,16 @@ func TestProvisionAndBoot_Success(t *testing.T) {
 
 	r := rt(iso, c)
 	r.PrefetchedISOPath = "/c/a-unattended.iso"
-	res, err := New().ProvisionAndBoot(context.Background(), input(), r)
+	p := New()
+	p.resolveTree = func(_ context.Context, u string) (string, error) {
+		return strings.Replace(u, "repo.almalinux.org/almalinux/", "vault.almalinux.org/", 1), nil
+	}
+	res, err := p.ProvisionAndBoot(context.Background(), input(), r)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !strings.Contains(ksSeen, "https://vault.almalinux.org/9.8/BaseOS/") || !strings.Contains(ksSeen, "https://vault.almalinux.org/9.8/AppStream/") {
+		t.Error("resolved (vault) tree URLs must be the ones rendered into the kickstart")
 	}
 	if res.NoCloudUploadPath != "ISO/oemdrv/oemdrv-da1.iso" {
 		t.Fatalf("unexpected upload path %q", res.NoCloudUploadPath)
@@ -111,6 +118,14 @@ func TestProvisionAndBoot_BadInputFailsBeforeAnyUpload(t *testing.T) {
 	in := input()
 	in.OSVersion = "1.0"
 	if _, err := New().ProvisionAndBoot(context.Background(), in, rt(&isomocks.ManagerInterface{}, nil)); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestProvisionAndBoot_UnreachableTreeFailsBeforeAnyUpload(t *testing.T) {
+	p := New()
+	p.resolveTree = func(context.Context, string) (string, error) { return "", errors.New("HTTP 404") }
+	if _, err := p.ProvisionAndBoot(context.Background(), input(), rt(&isomocks.ManagerInterface{}, nil)); err == nil {
 		t.Fatal("expected error")
 	}
 }

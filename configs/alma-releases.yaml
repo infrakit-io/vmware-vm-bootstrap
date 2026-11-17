@@ -3,15 +3,18 @@
 #
 # The boot ISO is only the Anaconda installer; packages are installed from the
 # BaseOS/AppStream trees named below (kickstart `url` / `repo`). Pin them to the
-# same minor as the ISO. When a newer minor is released the old tree moves to
-# https://vault.almalinux.org/<version>/ - update the two *_url values then.
+# same minor as the ISO. ALWAYS use the version-pinned path /almalinux/<ver>/ on
+# repo.almalinux.org, never the moving /almalinux/9/ alias (it serves only the
+# newest minor). When a minor is superseded its files move to
+# https://vault.almalinux.org/<ver>/; vmbootstrap falls back there automatically
+# on HTTP 404 (same checksum, still verified strictly).
 #
 # Every release MUST carry a checksum: the ISO is refused if it is empty or
 # malformed, a cached ISO that does not match is discarded, and a downloaded ISO
 # that does not match is deleted and refused.
 #
 # How the checksum below was obtained and verified (2026-11-08):
-#   1. CHECKSUM downloaded from https://repo.almalinux.org/almalinux/9/isos/x86_64/
+#   1. CHECKSUM downloaded from https://repo.almalinux.org/almalinux/<ver>/isos/x86_64/
 #      (a PGP clear-signed file) and RPM-GPG-KEY-AlmaLinux-9 from
 #      https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-9
 #   2. Key fingerprint BF18 AC28 7617 8908 D6E7 1267 D36C B86C B86B 3716
@@ -20,10 +23,19 @@
 #      fingerprint; a one-byte-tampered copy returned BAD signature (negative control).
 #   4. The AlmaLinux-9.8-x86_64-boot.iso line copied from the verified CHECKSUM; the
 #      full ISO (1519271936 bytes) was also downloaded and hashed: it matched.
+#   5. 9.9 (2026-11-17): same procedure; CHECKSUM from /almalinux/9.9/isos/x86_64/ has a
+#      GOODSIG/VALIDSIG for the same fingerprint (signed 2026-11-13); the line for
+#      AlmaLinux-9.9-x86_64-boot.iso (1596456960 bytes) is copied below. The 9.8 value
+#      was re-checked against both repo.almalinux.org/almalinux/9.8 and vault.
 
 releases:
+  "9.9":
+    url: https://repo.almalinux.org/almalinux/9.9/isos/x86_64/AlmaLinux-9.9-x86_64-boot.iso
+    checksum: b42da86274caabc56294ab9bc37d1bb8b2298fcf4304dca40c21d4cfb938f651
+    baseos_url: https://repo.almalinux.org/almalinux/9.9/BaseOS/x86_64/os/
+    appstream_url: https://repo.almalinux.org/almalinux/9.9/AppStream/x86_64/os/
   "9.8":
-    url: https://repo.almalinux.org/almalinux/9/isos/x86_64/AlmaLinux-9.8-x86_64-boot.iso
+    url: https://repo.almalinux.org/almalinux/9.8/isos/x86_64/AlmaLinux-9.8-x86_64-boot.iso
     checksum: 445f99e24399bbe98aab86111d60751c142eda049d2444fd76da5eb03472e4ab
     baseos_url: https://repo.almalinux.org/almalinux/9.8/BaseOS/x86_64/os/
     appstream_url: https://repo.almalinux.org/almalinux/9.8/AppStream/x86_64/os/

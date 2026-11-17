@@ -11,13 +11,21 @@ import (
 
 	"github.com/infrakit-io/vmware-vm-bootstrap/configs"
 	"github.com/infrakit-io/vmware-vm-bootstrap/internal/utils"
+	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/iso"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/kickstart"
 	"github.com/infrakit-io/vmware-vm-bootstrap/pkg/profile"
 )
 
-type Provisioner struct{}
+type Provisioner struct {
+	// resolveTree returns a install-tree URL that resolves right now (primary or vault).
+	resolveTree func(ctx context.Context, url string) (string, error)
+}
 
-func New() *Provisioner { return &Provisioner{} }
+func New() *Provisioner {
+	return &Provisioner{resolveTree: func(ctx context.Context, u string) (string, error) {
+		return iso.ResolveAlmaTreeURL(ctx, nil, u)
+	}}
+}
 
 func (p *Provisioner) Name() string { return "alma" }
 
@@ -47,6 +55,10 @@ func BuildKickstart(in profile.Input) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("unsupported AlmaLinux version %q", in.OSVersion)
 	}
+	return buildKickstart(in, release)
+}
+
+func buildKickstart(in profile.Input, release configs.AlmaRelease) (string, error) {
 	if len(in.ExtraNICs) > 0 {
 		return "", fmt.Errorf("ExtraNICs are not supported by the alma profile")
 	}
@@ -101,7 +113,19 @@ func BuildKickstart(in profile.Input) (string, error) {
 }
 
 func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt profile.Runtime) (profile.Result, error) {
-	ks, err := BuildKickstart(in)
+	release, ok := configs.AlmaReleases.Releases[in.OSVersion]
+	if !ok {
+		return profile.Result{}, fmt.Errorf("failed to generate kickstart: unsupported AlmaLinux version %q", in.OSVersion)
+	}
+	// Anaconda fetches packages from these URLs, so they must resolve now.
+	var err error
+	if release.BaseOSURL, err = p.resolveTree(ctx, release.BaseOSURL); err != nil {
+		return profile.Result{}, fmt.Errorf("AlmaLinux BaseOS tree not reachable: %w", err)
+	}
+	if release.AppStreamURL, err = p.resolveTree(ctx, release.AppStreamURL); err != nil {
+		return profile.Result{}, fmt.Errorf("AlmaLinux AppStream tree not reachable: %w", err)
+	}
+	ks, err := buildKickstart(in, release)
 	if err != nil {
 		return profile.Result{}, fmt.Errorf("failed to generate kickstart: %w", err)
 	}
