@@ -62,11 +62,22 @@ func TestBuildKickstart(t *testing.T) {
 	}
 }
 
+func stubResolver(_ context.Context, u string) (string, error) { return u, nil }
+
+func TestPrefetch_UnresolvableTreeFailsBeforeDownload(t *testing.T) {
+	iso := &isomocks.ManagerInterface{} // no DownloadAlma expectation: must not be reached
+	p := NewWithResolver(func(context.Context, string) (string, error) { return "", errors.New("HTTP 404") })
+	if _, err := p.Prefetch(context.Background(), input(), rt(iso, nil)); err == nil {
+		t.Fatal("expected error")
+	}
+	iso.AssertNotCalled(t, "DownloadAlma", mock.Anything)
+}
+
 func TestPrefetch(t *testing.T) {
 	iso := &isomocks.ManagerInterface{}
 	iso.On("DownloadAlma", "9.8").Return("/c/a.iso", nil).Once()
 	iso.On("ModifyAlmaISO", "/c/a.iso").Return("/c/a-unattended.iso", true, nil).Once()
-	got, err := New().Prefetch(context.Background(), input(), rt(iso, nil))
+	got, err := NewWithResolver(stubResolver).Prefetch(context.Background(), input(), rt(iso, nil))
 	if err != nil || got != "/c/a-unattended.iso" {
 		t.Fatalf("got %q %v", got, err)
 	}
@@ -74,7 +85,7 @@ func TestPrefetch(t *testing.T) {
 
 	iso = &isomocks.ManagerInterface{}
 	iso.On("DownloadAlma", "9.8").Return("", errors.New("checksum mismatch")).Once()
-	if _, err := New().Prefetch(context.Background(), input(), rt(iso, nil)); err == nil {
+	if _, err := NewWithResolver(stubResolver).Prefetch(context.Background(), input(), rt(iso, nil)); err == nil {
 		t.Fatal("download error must propagate")
 	}
 }
@@ -93,10 +104,9 @@ func TestProvisionAndBoot_Success(t *testing.T) {
 
 	r := rt(iso, c)
 	r.PrefetchedISOPath = "/c/a-unattended.iso"
-	p := New()
-	p.resolveTree = func(_ context.Context, u string) (string, error) {
+	p := NewWithResolver(func(_ context.Context, u string) (string, error) {
 		return strings.Replace(u, "repo.almalinux.org/almalinux/", "vault.almalinux.org/", 1), nil
-	}
+	})
 	res, err := p.ProvisionAndBoot(context.Background(), input(), r)
 	if err != nil {
 		t.Fatal(err)
@@ -117,14 +127,13 @@ func TestProvisionAndBoot_Success(t *testing.T) {
 func TestProvisionAndBoot_BadInputFailsBeforeAnyUpload(t *testing.T) {
 	in := input()
 	in.OSVersion = "1.0"
-	if _, err := New().ProvisionAndBoot(context.Background(), in, rt(&isomocks.ManagerInterface{}, nil)); err == nil {
+	if _, err := NewWithResolver(stubResolver).ProvisionAndBoot(context.Background(), in, rt(&isomocks.ManagerInterface{}, nil)); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestProvisionAndBoot_UnreachableTreeFailsBeforeAnyUpload(t *testing.T) {
-	p := New()
-	p.resolveTree = func(context.Context, string) (string, error) { return "", errors.New("HTTP 404") }
+	p := NewWithResolver(func(context.Context, string) (string, error) { return "", errors.New("HTTP 404") })
 	if _, err := p.ProvisionAndBoot(context.Background(), input(), rt(&isomocks.ManagerInterface{}, nil)); err == nil {
 		t.Fatal("expected error")
 	}

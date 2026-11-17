@@ -118,7 +118,7 @@ func TestBootstrap_AlmaFlow(t *testing.T) {
 
 	var order []string
 	b := testBootstrapper(vc, creator, isoMgr)
-	b.resolveProfile = func(string) (profile.Provisioner, error) { return almaprofile.New(), nil }
+	b.resolveProfile = func(string) (profile.Provisioner, error) { return almaprofile.NewWithResolver(stubTree), nil }
 	b.waitPowerOff = func(context.Context, *object.VirtualMachine, *slog.Logger) error {
 		order = append(order, "powered-off")
 		return nil
@@ -141,6 +141,25 @@ func TestBootstrap_AlmaFlow(t *testing.T) {
 	isoMgr.AssertNotCalled(t, "DownloadUbuntu", mock.Anything)
 }
 
+func stubTree(_ context.Context, u string) (string, error) { return u, nil }
+
+func TestBootstrap_AlmaUnresolvableTreeFailsBeforeVMCreation(t *testing.T) {
+	vc := new(vcmocks.ClientInterface)
+	creator := new(vmmocks.CreatorInterface) // no Create expectation: mock panics if called
+	isoMgr := new(isomocks.ManagerInterface)
+	wireSuccessfulMocks(vc, creator, isoMgr)
+	b := testBootstrapper(vc, creator, isoMgr)
+	b.resolveProfile = func(string) (profile.Provisioner, error) {
+		return almaprofile.NewWithResolver(func(context.Context, string) (string, error) {
+			return "", assert.AnError
+		}), nil
+	}
+	_, err := b.run(context.Background(), almaConfig(), slog.Default())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no VM was created")
+	creator.AssertNotCalled(t, "Create", mock.Anything, mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestBootstrap_AlmaInstallNeverPowersOff(t *testing.T) {
 	vc := new(vcmocks.ClientInterface)
 	creator := new(vmmocks.CreatorInterface)
@@ -152,7 +171,7 @@ func TestBootstrap_AlmaInstallNeverPowersOff(t *testing.T) {
 	isoMgr.On("CreateKickstartISO", mock.Anything, "test-vm").Return("/tmp/oemdrv.iso", nil)
 
 	b := testBootstrapper(vc, creator, isoMgr)
-	b.resolveProfile = func(string) (profile.Provisioner, error) { return almaprofile.New(), nil }
+	b.resolveProfile = func(string) (profile.Provisioner, error) { return almaprofile.NewWithResolver(stubTree), nil }
 	b.waitPowerOff = func(context.Context, *object.VirtualMachine, *slog.Logger) error {
 		return assert.AnError
 	}

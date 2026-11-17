@@ -19,12 +19,42 @@ import (
 type Provisioner struct {
 	// resolveTree returns a install-tree URL that resolves right now (primary or vault).
 	resolveTree func(ctx context.Context, url string) (string, error)
+	// resolved caches the release with resolved tree URLs per version, so the
+	// pre-create check (Prefetch) and the kickstart rendering agree.
+	resolved map[string]configs.AlmaRelease
 }
 
 func New() *Provisioner {
-	return &Provisioner{resolveTree: func(ctx context.Context, u string) (string, error) {
+	return NewWithResolver(func(ctx context.Context, u string) (string, error) {
 		return iso.ResolveAlmaTreeURL(ctx, nil, u)
-	}}
+	})
+}
+
+// NewWithResolver is New with an injectable install-tree resolver (tests).
+func NewWithResolver(resolve func(ctx context.Context, url string) (string, error)) *Provisioner {
+	return &Provisioner{resolveTree: resolve, resolved: map[string]configs.AlmaRelease{}}
+}
+
+// release returns the pinned release with BaseOS/AppStream URLs that resolve
+// now. Anaconda (not Go) fetches packages from them, so they are checked
+// before any VM exists and the same URLs are rendered into the kickstart.
+func (p *Provisioner) release(ctx context.Context, version string) (configs.AlmaRelease, error) {
+	if r, ok := p.resolved[version]; ok {
+		return r, nil
+	}
+	r, ok := configs.AlmaReleases.Releases[version]
+	if !ok {
+		return r, fmt.Errorf("unsupported AlmaLinux version %q", version)
+	}
+	var err error
+	if r.BaseOSURL, err = p.resolveTree(ctx, r.BaseOSURL); err != nil {
+		return r, fmt.Errorf("AlmaLinux BaseOS tree not reachable: %w", err)
+	}
+	if r.AppStreamURL, err = p.resolveTree(ctx, r.AppStreamURL); err != nil {
+		return r, fmt.Errorf("AlmaLinux AppStream tree not reachable: %w", err)
+	}
+	p.resolved[version] = r
+	return r, nil
 }
 
 func (p *Provisioner) Name() string { return "alma" }
@@ -32,6 +62,9 @@ func (p *Provisioner) Name() string { return "alma" }
 // Prefetch downloads + checksum-verifies the AlmaLinux boot ISO and patches its
 // boot menu. None of it depends on the VM, so it runs before VM creation.
 func (p *Provisioner) Prefetch(ctx context.Context, in profile.Input, rt profile.Runtime) (string, error) {
+	if _, err := p.release(ctx, in.OSVersion); err != nil {
+		return "", err
+	}
 	return p.fetchISO(in, rt)
 }
 
@@ -113,17 +146,9 @@ func buildKickstart(in profile.Input, release configs.AlmaRelease) (string, erro
 }
 
 func (p *Provisioner) ProvisionAndBoot(ctx context.Context, in profile.Input, rt profile.Runtime) (profile.Result, error) {
-	release, ok := configs.AlmaReleases.Releases[in.OSVersion]
-	if !ok {
-		return profile.Result{}, fmt.Errorf("failed to generate kickstart: unsupported AlmaLinux version %q", in.OSVersion)
-	}
-	// Anaconda fetches packages from these URLs, so they must resolve now.
-	var err error
-	if release.BaseOSURL, err = p.resolveTree(ctx, release.BaseOSURL); err != nil {
-		return profile.Result{}, fmt.Errorf("AlmaLinux BaseOS tree not reachable: %w", err)
-	}
-	if release.AppStreamURL, err = p.resolveTree(ctx, release.AppStreamURL); err != nil {
-		return profile.Result{}, fmt.Errorf("AlmaLinux AppStream tree not reachable: %w", err)
+	release, err := p.release(ctx, in.OSVersion)
+	if err != nil {
+		return profile.Result{}, fmt.Errorf("failed to generate kickstart: %w", err)
 	}
 	ks, err := buildKickstart(in, release)
 	if err != nil {
